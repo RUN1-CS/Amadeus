@@ -104,10 +104,13 @@ export async function buildChatRequest(
 
   const contextWindow = await getModelContextWindow(model);
   const systemPrompt = [
-    `The current user's username is ${userName}. Address them by name when it is natural and useful.`,
-    aboutMe.trim() ? `About the user:\n${aboutMe.trim()}` : "",
+    "You are the AI assistant. The person sending the user messages is the human user. Never claim to be the user or speak as if you are the user.",
+    `The human user's username is ${userName}. Address the human user by name when it is natural and useful.`,
+    aboutMe.trim()
+      ? `About the human user (not about you):\nThe statements below describe the human user. If they use first-person language such as "I am" or "I like", interpret it as referring to the human user. Do not adopt these traits, opinions, or preferences as your own.\n${aboutMe.trim()}`
+      : "",
     customBehavior.trim()
-      ? `Underlying instructions from the user:\n${customBehavior.trim()}`
+      ? `The human user's preferences for your behavior:\n${customBehavior.trim()}`
       : "",
   ]
     .filter(Boolean)

@@ -8,9 +8,18 @@
 
 @layer base {
   :root {
+    --theme-accent: #c36b46;
+    --theme-background: #f7f5f0;
+    --theme-surface: #fffdf9;
+    --theme-text: #24221f;
+    --theme-sidebar: color-mix(in srgb, var(--theme-background) 88%, var(--theme-text));
+    --theme-input: color-mix(in srgb, var(--theme-surface) 86%, var(--theme-background));
+    --theme-border: color-mix(in srgb, var(--theme-text) 16%, var(--theme-background));
+    --theme-muted: color-mix(in srgb, var(--theme-text) 58%, var(--theme-background));
+    --theme-subtle: color-mix(in srgb, var(--theme-text) 38%, var(--theme-background));
     font-family: var(--font-sans);
-    color: #24221f;
-    background: #f4f1eb;
+    color: var(--theme-text);
+    background: var(--theme-background);
     font-synthesis: none;
   }
 
@@ -78,13 +87,13 @@
   }
 
   .assistant-markdown a {
-    color: #a95737;
+    color: var(--theme-accent);
     text-decoration: underline;
   }
 
   .assistant-markdown code {
     border-radius: 0.25rem;
-    background: #ebe8e1;
+    background: var(--theme-sidebar);
     padding: 0.1rem 0.3rem;
     font-family: var(--font-mono);
     font-size: 0.85em;
@@ -105,13 +114,13 @@
   }
 
   .assistant-markdown blockquote {
-    border-left: 3px solid #c36b46;
+    border-left: 3px solid var(--theme-accent);
     padding-left: 1rem;
-    color: #746c62;
+    color: var(--theme-muted);
   }
 
   .assistant-markdown hr {
     margin: 1rem 0;
-    border-color: #ddd8ce;
+    border-color: var(--theme-border);
   }
 }

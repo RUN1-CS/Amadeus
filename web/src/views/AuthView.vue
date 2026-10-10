@@ -26,14 +26,14 @@ async function submit() {
 
 <template>
   <main
-    class="flex min-h-screen items-center justify-center bg-[#f7f5f0] px-5 py-10 text-[#24221f]"
+    class="flex min-h-screen items-center justify-center bg-[var(--theme-background)] px-5 py-10 text-[var(--theme-text)]"
   >
     <section
-      class="w-full max-w-md rounded-2xl border border-[#ddd8ce] bg-[#fffdf9] p-7 shadow-[0_20px_60px_rgba(122,108,91,0.12)] sm:p-9"
+      class="w-full max-w-md rounded-2xl border border-[#ddd8ce] bg-[var(--theme-surface)] p-7 shadow-[0_20px_60px_rgba(122,108,91,0.12)] sm:p-9"
     >
       <div class="mb-8 flex items-center gap-3">
         <div
-          class="grid size-10 place-items-center rounded-xl bg-[#c36b46] font-mono text-xl text-white"
+          class="grid size-10 place-items-center rounded-xl bg-[var(--theme-accent)] font-mono text-xl text-white"
         >
           O
         </div>
@@ -62,7 +62,7 @@ async function submit() {
             type="text"
             autocomplete="username"
             required
-            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[#f7f5f0] px-3 py-2.5 outline-none focus:border-[#c36b46]"
+            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
           />
         </label>
         <label class="block text-sm font-semibold">
@@ -73,7 +73,7 @@ async function submit() {
             :autocomplete="isRegister ? 'new-password' : 'current-password'"
             minlength="8"
             required
-            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[#f7f5f0] px-3 py-2.5 outline-none focus:border-[#c36b46]"
+            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
           />
         </label>
         <p v-if="authError" class="rounded-lg bg-[#f9e4dc] px-3 py-2 text-sm text-[#9e422c]">
@@ -82,14 +82,14 @@ async function submit() {
         <button
           type="submit"
           :disabled="authLoading"
-          class="w-full rounded-lg bg-[#c36b46] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#a95737] disabled:cursor-wait disabled:opacity-50"
+          class="w-full rounded-lg bg-[var(--theme-accent)] px-4 py-3 text-sm font-bold text-white transition hover:opacity-80 disabled:cursor-wait disabled:opacity-50"
         >
           {{ authLoading ? "Working..." : isRegister ? "Register" : "Sign in" }}
         </button>
       </form>
 
       <button
-        class="mt-6 w-full text-sm text-[#a95737] hover:underline"
+        class="mt-6 w-full text-sm text-[var(--theme-accent)] hover:underline"
         @click="router.push(isRegister ? '/login' : '/register')"
       >
         {{ isRegister ? "Already have an account? Sign in" : "Need an account? Register" }}

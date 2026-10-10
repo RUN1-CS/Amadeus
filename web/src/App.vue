@@ -6,6 +6,9 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 
 import { useOllamaStore } from "./stores/ollama";
+import { applyTheme, loadTheme } from "./services/theme";
+
+applyTheme(loadTheme());
 
 const ollamaStore = useOllamaStore();
 const route = useRoute();
@@ -120,25 +123,30 @@ function renderMarkdown(content: string) {
 </script>
 <template>
   <RouterView v-if="route.path !== '/'" />
-  <main v-else-if="user" class="flex h-screen overflow-hidden bg-[#f7f5f0] text-[#24221f]">
+  <main
+    v-else-if="user"
+    class="flex h-screen overflow-hidden bg-[var(--theme-background)] text-[var(--theme-text)]"
+  >
     <aside
       v-if="sidebarVisible"
-      class="hidden w-[278px] shrink-0 flex-col border-r border-[#ddd8ce] bg-[#ebe8e1] px-[18px] py-7 md:flex"
+      class="hidden w-[278px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-[18px] py-7 md:flex"
     >
       <div class="flex items-center gap-3 px-2 pb-8">
         <div
-          class="grid size-8 place-items-center rounded-lg bg-[#c36b46] font-mono text-lg font-medium text-[#f9f7f2]"
+          class="grid size-8 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-lg font-medium text-[#f9f7f2]"
         >
           O
         </div>
         <div>
           <p class="text-[13px] font-extrabold">Ollama desk</p>
-          <p class="mt-1 font-mono text-[10px] uppercase tracking-[0.09em] text-[#888177]">
+          <p
+            class="mt-1 font-mono text-[10px] uppercase tracking-[0.09em] text-[var(--theme-muted)]"
+          >
             Local intelligence
           </p>
         </div>
         <button
-          class="ml-auto bg-transparent text-2xl leading-none text-[#8b867e]"
+          class="ml-auto bg-transparent text-2xl leading-none text-[var(--theme-muted)]"
           aria-label="Collapse sidebar"
           @click="setSidebarVisible(false)"
         >
@@ -147,38 +155,38 @@ function renderMarkdown(content: string) {
       </div>
 
       <button
-        class="flex w-full items-center gap-2.5 rounded-lg border border-[#d8d2c7] bg-[#f5f2ec] px-3.5 py-3 text-left text-xs font-bold text-[#4d4841] shadow-sm transition hover:border-[#bc8061] hover:text-[#a35232]"
+        class="flex w-full items-center gap-2.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-input)] px-3.5 py-3 text-left text-xs font-bold text-[var(--theme-text)] shadow-sm transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
         @click="createNewChat"
       >
-        <span class="text-lg leading-3 text-[#bf6745]">+</span> New conversation
+        <span class="text-lg leading-3 text-[var(--theme-accent)]">+</span> New conversation
       </button>
 
       <div class="mt-9">
         <div
-          class="flex items-center justify-between px-2.5 pb-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[#9a948b]"
+          class="flex items-center justify-between px-2.5 pb-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--theme-muted)]"
         >
           <span>Today</span>
-          <span class="text-[#b2aca3]">{{ chats.length }}</span>
+          <span class="text-[var(--theme-subtle)]">{{ chats.length }}</span>
         </div>
         <div class="space-y-1">
           <button
             v-for="chat in chats"
             :key="chat.id"
-            class="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-3 text-left text-[#4d4841] transition hover:bg-[#f7f5f0]"
-            :class="chat.id === activeChatId ? 'bg-[#f7f5f0] shadow-sm' : ''"
+            class="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-3 text-left text-[var(--theme-text)] transition hover:bg-[var(--theme-background)]"
+            :class="chat.id === activeChatId ? 'bg-[var(--theme-background)] shadow-sm' : ''"
             @click="selectChat(chat.id)"
           >
-            <span class="size-1.5 shrink-0 rounded-full bg-[#ca7652]"></span>
+            <span class="size-1.5 shrink-0 rounded-full bg-[var(--theme-accent)]"></span>
             <span class="flex min-w-0 flex-1 flex-col gap-1">
               <strong class="truncate text-[11px]">{{ chat.title }}</strong>
-              <small class="font-mono text-[9px] text-[#a19a90]">{{
+              <small class="font-mono text-[9px] text-[var(--theme-subtle)]">{{
                 new Date(chat.createdAt).toLocaleDateString()
               }}</small>
             </span>
             <span
               role="button"
               tabindex="0"
-              class="hidden px-1 text-xs text-[#aaa39a] hover:text-[#a95737] group-hover:inline"
+              class="hidden px-1 text-xs text-[var(--theme-subtle)] hover:text-[var(--theme-accent)] group-hover:inline"
               aria-label="Delete chat"
               @click.stop="openDelete(chat)"
               @keydown.enter.stop="openDelete(chat)"
@@ -188,7 +196,7 @@ function renderMarkdown(content: string) {
             <span
               role="button"
               tabindex="0"
-              class="hidden px-1 text-xs text-[#aaa39a] hover:text-[#a95737] group-hover:inline"
+              class="hidden px-1 text-xs text-[var(--theme-subtle)] hover:text-[var(--theme-accent)] group-hover:inline"
               aria-label="Rename chat"
               @click.stop="openRename(chat)"
               @keydown.enter.stop="openRename(chat)"
@@ -199,31 +207,39 @@ function renderMarkdown(content: string) {
         </div>
       </div>
 
-      <div class="mt-auto border-t border-[#d9d4ca] px-2 pt-4">
-        <div class="flex items-center gap-2 font-mono text-[10px] text-[#777068]">
-          <span class="size-1.5 rounded-full bg-[#74a66d]"></span> Ollama connected
+      <div class="mt-auto border-t border-[var(--theme-border)] px-2 pt-4">
+        <div class="flex items-center gap-2 font-mono text-[10px] text-[var(--theme-muted)]">
+          <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Ollama connected
         </div>
-        <div class="mt-4 flex gap-2 text-[10px] text-[#b1aba2]">
-          <span class="max-w-[130px] truncate text-[#777068]">{{ user.username }}</span>
+        <div class="mt-4 flex gap-2 text-[10px] text-[var(--theme-subtle)]">
+          <span class="max-w-[130px] truncate text-[var(--theme-muted)]">{{ user.username }}</span>
           <span>·</span>
-          <button class="text-[#9e988f] hover:text-[#a95737]" @click="router.push('/settings')">
+          <button
+            class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
+            @click="router.push('/settings')"
+          >
             Settings
           </button>
           <span>·</span>
-          <button class="text-[#9e988f] hover:text-[#a95737]" @click="logout">Log out</button>
+          <button
+            class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
+            @click="logout"
+          >
+            Log out
+          </button>
         </div>
       </div>
     </aside>
 
     <section class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <header
-        class="flex items-center justify-between gap-5 border-b border-[#e5e1d9] px-5 py-6 sm:px-[6.5%]"
+        class="flex items-center justify-between gap-5 border-b border-[var(--theme-border)] px-5 py-6 sm:px-[6.5%]"
       >
         <div>
           <div
-            class="mb-2.5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[#9b948b]"
+            class="mb-2.5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--theme-muted)]"
           >
-            <span class="size-1.5 rounded-full bg-[#74a66d]"></span> Private workspace
+            <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Private workspace
           </div>
           <h1 class="text-xl font-bold tracking-tight sm:text-2xl">
             {{ activeChat?.title ?? "Conversation" }}
@@ -232,17 +248,17 @@ function renderMarkdown(content: string) {
         <div class="flex items-center gap-3">
           <button
             v-if="!sidebarVisible"
-            class="rounded-md border border-[#d8d2c7] px-2 py-1 text-xs text-[#6b645b] hover:border-[#bc8061]"
+            class="rounded-md border border-[var(--theme-border)] px-2 py-1 text-xs text-[var(--theme-muted)] hover:border-[var(--theme-accent)]"
             @click="setSidebarVisible(true)"
           >
             Chats
           </button>
           <span
-            class="hidden items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[#8e9888] sm:flex"
-            ><span class="size-1.5 rounded-full bg-[#74a66d]"></span> Ready</span
+            class="hidden items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)] sm:flex"
+            ><span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Ready</span
           >
           <button
-            class="bg-transparent text-lg text-[#8b867e]"
+            class="bg-transparent text-lg text-[var(--theme-muted)]"
             aria-label="More conversation options"
           >
             •••
@@ -261,12 +277,12 @@ function renderMarkdown(content: string) {
             class="flex min-h-full flex-col items-center justify-center py-16 text-center"
           >
             <div
-              class="mb-4 grid size-12 place-items-center rounded-xl bg-[#c36b46] font-mono text-2xl text-[#f9f7f2]"
+              class="mb-4 grid size-12 place-items-center rounded-xl bg-[var(--theme-accent)] font-mono text-2xl text-[#f9f7f2]"
             >
               ✦
             </div>
             <h2 class="text-xl font-bold">Start a fresh conversation</h2>
-            <p class="mt-2 max-w-md text-sm leading-6 text-[#8a837a]">
+            <p class="mt-2 max-w-md text-sm leading-6 text-[var(--theme-muted)]">
               Bring a question, a half-formed idea, or a problem you want to untangle.
             </p>
           </div>
@@ -276,8 +292,8 @@ function renderMarkdown(content: string) {
                 class="grid size-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-medium"
                 :class="
                   message.role === 'assistant'
-                    ? 'bg-[#c36b46] text-[#fffaf4]'
-                    : 'bg-[#ddd8ce] text-[#625b52]'
+                    ? 'bg-[var(--theme-accent)] text-[#fffaf4]'
+                    : 'bg-[var(--theme-sidebar)] text-[var(--theme-text)]'
                 "
               >
                 {{ message.role === "assistant" ? "O" : "Y" }}
@@ -287,37 +303,41 @@ function renderMarkdown(content: string) {
                   <strong>{{
                     message.role === "assistant" ? message.model || "Assistant" : "You"
                   }}</strong>
-                  <span class="font-mono text-[10px] text-[#aaa39a]">{{ message.time }}</span>
+                  <span class="font-mono text-[10px] text-[var(--theme-subtle)]">{{
+                    message.time
+                  }}</span>
                 </div>
                 <details
                   v-if="message.thinking"
-                  class="mb-3 rounded-lg border border-[#e3ddd3] bg-[#f4f1eb] px-3 py-2 text-xs text-[#746c62]"
+                  class="mb-3 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-3 py-2 text-xs text-[var(--theme-muted)]"
                   :open="isGenerating"
                 >
-                  <summary class="cursor-pointer select-none font-semibold text-[#635a50]">
+                  <summary
+                    class="cursor-pointer select-none font-semibold text-[var(--theme-text)]"
+                  >
                     Thinking{{ isGenerating ? "..." : "" }}
                   </summary>
                   <div class="mt-2 whitespace-pre-wrap leading-6">{{ message.thinking }}</div>
                 </details>
                 <div
-                  class="assistant-markdown text-sm leading-7 text-[#514b44]"
+                  class="min-h-14 w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-subtle)]"
                   v-html="renderMarkdown(message.content)"
                 ></div>
               </div>
             </article>
             <div v-if="isGenerating" class="flex items-center gap-3">
               <span
-                class="grid size-8 place-items-center rounded-lg bg-[#c36b46] font-mono text-xs text-[#fffaf4]"
+                class="grid size-8 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-xs text-[#fffaf4]"
                 >O</span
               >
               <span
-                class="flex items-center gap-2 rounded-full bg-[#ebe8e1] px-3 py-2 text-xs text-[#746c62]"
-                ><i class="size-1.5 animate-pulse rounded-full bg-[#a99f94]"></i
+                class="flex items-center gap-2 rounded-full bg-[var(--theme-sidebar)] px-3 py-2 text-xs text-[var(--theme-muted)]"
+                ><i class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)]"></i
                 ><i
-                  class="size-1.5 animate-pulse rounded-full bg-[#a99f94] [animation-delay:150ms]"
+                  class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)] [animation-delay:150ms]"
                 ></i
                 ><i
-                  class="size-1.5 animate-pulse rounded-full bg-[#a99f94] [animation-delay:300ms]"
+                  class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)] [animation-delay:300ms]"
                 ></i
                 ><span>{{ thinking ? "Thinking..." : "Generating..." }}</span></span
               >
@@ -331,52 +351,56 @@ function renderMarkdown(content: string) {
               >Try asking</span
             >
             <button
-              class="rounded-full border border-[#d8d2c7] px-3 py-1.5 text-[11px] text-[#6b645b] transition hover:border-[#bc8061] hover:text-[#a35232]"
+              class="rounded-full border border-[var(--theme-border)] px-3 py-1.5 text-[11px] text-[var(--theme-muted)] transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
               @click="selectPrompt('Summarize a complex idea for me')"
             >
               Summarize an idea
             </button>
             <button
-              class="rounded-full border border-[#d8d2c7] px-3 py-1.5 text-[11px] text-[#6b645b] transition hover:border-[#bc8061] hover:text-[#a35232]"
+              class="rounded-full border border-[var(--theme-border)] px-3 py-1.5 text-[11px] text-[var(--theme-muted)] transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
               @click="selectPrompt('Help me plan my next project')"
             >
               Plan a project
             </button>
             <button
-              class="rounded-full border border-[#d8d2c7] px-3 py-1.5 text-[11px] text-[#6b645b] transition hover:border-[#bc8061] hover:text-[#a35232]"
+              class="rounded-full border border-[var(--theme-border)] px-3 py-1.5 text-[11px] text-[var(--theme-muted)] transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
               @click="selectPrompt('Review this code for me')"
             >
               Review some code
             </button>
           </div>
           <form
-            class="rounded-xl border border-[#d8d2c7] bg-white/70 p-3 shadow-[0_8px_30px_rgba(122,108,91,0.08)]"
+            class="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-input)] p-3 shadow-[0_8px_30px_rgba(122,108,91,0.08)]"
             @submit.prevent="sendMessage"
           >
             <textarea
               v-model="draft"
               rows="1"
               placeholder="Message your local assistant..."
-              class="min-h-14 w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-[#3e3934] outline-none placeholder:text-[#aaa39a]"
+              class="min-h-14 w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-subtle)]"
               aria-label="Message your local assistant"
               @keydown="handleComposerKeydown"
             ></textarea>
             <div
-              class="flex flex-wrap items-center justify-between gap-3 border-t border-[#eeeae3] pt-3"
+              class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--theme-border)] pt-3"
             >
               <div class="flex items-center gap-4">
-                <button type="button" class="text-xs text-[#8b8379]" aria-label="Attach a file">
+                <button
+                  type="button"
+                  class="text-xs text-[var(--theme-muted)]"
+                  aria-label="Attach a file"
+                >
                   ＋ Attach
                 </button>
                 <label
-                  class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[#9a948b]"
+                  class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
                   for="composer-model"
                 >
                   Model
                   <select
                     id="composer-model"
                     v-model="ollamaStore.selectedModel"
-                    class="max-w-[150px] rounded-md border border-[#ddd8ce] bg-[#f7f5f0] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[#4d4841] outline-none focus:border-[#c36b46]"
+                    class="max-w-[150px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
                   >
                     <option v-if="ollamaStore.models.length === 0" value="" disabled>
                       Waiting for models...
@@ -386,21 +410,21 @@ function renderMarkdown(content: string) {
                     </option>
                   </select>
                 </label>
-                <label class="flex items-center gap-1.5 text-xs text-[#6b645b]">
-                  <input v-model="tsundere" type="checkbox" class="accent-[#c36b46]" />
+                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
+                  <input v-model="tsundere" type="checkbox" class="accent-[var(--theme-accent)]" />
                   Tsundere
                 </label>
-                <label class="flex items-center gap-1.5 text-xs text-[#6b645b]">
-                  <input v-model="thinking" type="checkbox" class="accent-[#c36b46]" />
+                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
+                  <input v-model="thinking" type="checkbox" class="accent-[var(--theme-accent)]" />
                   Thinking
                 </label>
-                <label class="flex items-center gap-1.5 text-xs text-[#6b645b]">
-                  <input v-model="streaming" type="checkbox" class="accent-[#c36b46]" />
+                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
+                  <input v-model="streaming" type="checkbox" class="accent-[var(--theme-accent)]" />
                   Stream
                 </label>
               </div>
               <button
-                class="grid size-9 place-items-center rounded-lg bg-[#c36b46] text-lg text-white transition hover:bg-[#a95737] disabled:cursor-not-allowed disabled:opacity-40"
+                class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                 type="submit"
                 :disabled="!draft.trim() || isGenerating"
                 aria-label="Send message"
@@ -409,7 +433,7 @@ function renderMarkdown(content: string) {
               </button>
             </div>
           </form>
-          <p class="mt-3 text-center font-mono text-[10px] text-[#aaa39a]">
+          <p class="mt-3 text-center font-mono text-[10px] text-[var(--theme-subtle)]">
             Ollama can make mistakes. Check important information.
           </p>
         </div>
@@ -418,10 +442,10 @@ function renderMarkdown(content: string) {
 
     <div
       v-if="renameChatId"
-      class="fixed inset-0 z-10 grid place-items-center bg-[#24221f]/30 px-5"
+      class="fixed inset-0 z-10 grid place-items-center bg-[var(--theme-text)]/30 px-5"
     >
       <form
-        class="w-full max-w-md rounded-xl bg-[#fffdf9] p-6 shadow-xl"
+        class="w-full max-w-md rounded-xl bg-[var(--theme-surface)] p-6 shadow-xl"
         @submit.prevent="submitRename"
       >
         <h2 class="text-lg font-bold">Rename chat</h2>
@@ -431,20 +455,20 @@ function renderMarkdown(content: string) {
             v-model="renameValue"
             type="text"
             required
-            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[#f7f5f0] px-3 py-2.5 outline-none focus:border-[#c36b46]"
+            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
           />
         </label>
         <div class="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            class="px-3 py-2 text-sm text-[#81796f]"
+            class="px-3 py-2 text-sm text-[var(--theme-muted)]"
             @click="renameChatId = null"
           >
             Cancel
           </button>
           <button
             type="submit"
-            class="rounded-lg bg-[#c36b46] px-4 py-2 text-sm font-bold text-white"
+            class="rounded-lg bg-[var(--theme-accent)] px-4 py-2 text-sm font-bold text-white"
           >
             Save
           </button>
@@ -454,14 +478,14 @@ function renderMarkdown(content: string) {
 
     <div
       v-if="deleteChatId"
-      class="fixed inset-0 z-10 grid place-items-center bg-[#24221f]/30 px-5"
+      class="fixed inset-0 z-10 grid place-items-center bg-[var(--theme-text)]/30 px-5"
     >
       <form
-        class="w-full max-w-md rounded-xl bg-[#fffdf9] p-6 shadow-xl"
+        class="w-full max-w-md rounded-xl bg-[var(--theme-surface)] p-6 shadow-xl"
         @submit.prevent="confirmDelete"
       >
         <h2 class="text-lg font-bold">Delete chat?</h2>
-        <p class="mt-2 text-sm leading-6 text-[#81796f]">
+        <p class="mt-2 text-sm leading-6 text-[var(--theme-muted)]">
           Type <strong class="text-[#4d4841]">{{ deleteChatName }}</strong> to permanently delete
           this conversation.
         </p>
@@ -469,12 +493,12 @@ function renderMarkdown(content: string) {
           v-model="deleteConfirmation"
           type="text"
           autocomplete="off"
-          class="mt-4 w-full rounded-lg border border-[#d8d2c7] bg-[#f7f5f0] px-3 py-2.5 outline-none focus:border-[#c36b46]"
+          class="mt-4 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
         />
         <div class="mt-5 flex justify-end gap-2">
           <button
             type="button"
-            class="px-3 py-2 text-sm text-[#81796f]"
+            class="px-3 py-2 text-sm text-[var(--theme-muted)]"
             @click="deleteChatId = null"
           >
             Cancel
