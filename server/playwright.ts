@@ -8,6 +8,10 @@ import { getErrorMessage } from "./errors.js";
 
 type ToolContent = { type?: string; text?: string };
 type ToolResult = { content?: ToolContent[]; isError?: boolean };
+export type ToolExecution = {
+  ok: boolean;
+  text: string;
+  };
 type McpTool = {
   name: string;
   description?: string;
@@ -45,14 +49,27 @@ async function getClient() {
   return clientPromise;
 }
 
-export function extractToolText(result: unknown) {
+export function extractToolText(result: unknown): ToolExecution {
   const toolResult = result as ToolResult;
-  if (toolResult.isError) return "";
-  return (toolResult.content ?? [])
+  const text = (toolResult.content ?? [])
     .filter((item) => item.type === "text" && item.text)
     .map((item) => item.text)
     .join("\n")
     .slice(0, 12_000);
+  return { ok: !toolResult.isError && text.trim().length > 0, text };
+}
+
+function normalizeUrl(value: string) {
+  const markdownMatch = value.match(/^\s*\[[^\]]+\]\((https?:\/\/[^\s)]+)\)\s*$/i);
+  const candidate = (markdownMatch?.[1] ?? value).trim();
+  return candidate.replace(/[),.;]+$/, "");
+}
+
+function normalizeToolArguments(name: string, args: Record<string, unknown>) {
+  if (name !== "browser_navigate" || typeof args.url !== "string") {
+    return args;
+  }
+  return { ...args, url: normalizeUrl(args.url) };
 }
 
 export async function getPlaywrightTools(): Promise<Tool[]> {
@@ -84,16 +101,25 @@ export async function getPlaywrightTools(): Promise<Tool[]> {
 export async function callPlaywrightTool(
   name: string,
   args: Record<string, unknown>,
-) {
+): Promise<ToolExecution> {
   try {
     const client = await getClient();
-    return extractToolText(await client.callTool({ name, arguments: args }));
-  } catch (error) {
-    console.error(
-      `Could not call Playwright MCP tool ${name}:`,
-      getErrorMessage(error),
+    const normalizedArgs = normalizeToolArguments(name, args);
+    console.log("[Playwright] call", name, normalizedArgs);
+    const result = extractToolText(
+      await client.callTool({ name, arguments: normalizedArgs }),
     );
+    console.log("[Playwright] result", {
+      name,
+      ok: result.ok,
+      characters: result.text.length,
+      preview: result.text.slice(0, 240),
+    });
+    return result;
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.error(`Could not call Playwright MCP tool ${name}:`, message);
     clientPromise = undefined;
-    return `Playwright tool ${name} failed: ${getErrorMessage(error)}`;
+    return { ok: false, text: `Playwright tool ${name} failed: ${message}` };
   }
 }
