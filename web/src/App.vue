@@ -37,6 +37,7 @@ const {
 
 const activeChat = computed(() => chats.value.find((chat) => chat.id === activeChatId.value));
 const chatScroll = ref<HTMLElement | null>(null);
+const shouldFollowLatest = ref(true);
 const renameChatId = ref<number | null>(null);
 const renameValue = ref("");
 const deleteChatId = ref<number | null>(null);
@@ -66,12 +67,34 @@ async function confirmDelete() {
   deleteChatId.value = null;
 }
 
-async function scrollToLatest() {
-  await nextTick();
-  if (chatScroll.value) chatScroll.value.scrollTop = chatScroll.value.scrollHeight;
+function isAtChatBottom() {
+  const element = chatScroll.value;
+  return element ? element.scrollHeight - element.scrollTop - element.clientHeight <= 24 : true;
 }
 
-watch(messageList, () => void scrollToLatest(), { deep: true, flush: "post" });
+function handleChatScroll() {
+  shouldFollowLatest.value = isAtChatBottom();
+}
+
+async function scrollToLatest() {
+  await nextTick();
+  if (chatScroll.value) {
+    chatScroll.value.scrollTop = chatScroll.value.scrollHeight;
+    shouldFollowLatest.value = true;
+  }
+}
+
+watch(
+  messageList,
+  () => {
+    if (shouldFollowLatest.value) void scrollToLatest();
+  },
+  { deep: true, flush: "post" },
+);
+watch(activeChatId, () => {
+  shouldFollowLatest.value = true;
+  void scrollToLatest();
+});
 
 void initializeAuth();
 watchEffect(() => {
@@ -228,7 +251,11 @@ function renderMarkdown(content: string) {
       </header>
 
       <div class="flex min-h-0 flex-1 flex-col px-5 py-7 sm:px-[6.5%]">
-        <div ref="chatScroll" class="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div
+          ref="chatScroll"
+          class="min-h-0 flex-1 overflow-y-auto pr-1"
+          @scroll="handleChatScroll"
+        >
           <div
             v-if="messageList.length === 0"
             class="flex min-h-full flex-col items-center justify-center py-16 text-center"
