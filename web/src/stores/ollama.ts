@@ -21,11 +21,16 @@ type ErrorMessage = {
   type: "error";
   error: string;
 };
+type ChatTitleMessage = {
+  type: "chat_title";
+  chat: Chat;
+};
 
 type ServerMessage =
   | ModelMessage
   | AssistantMessage
   | ErrorMessage
+  | ChatTitleMessage
   | { type: "authenticated"; user: User }
   | { type: "done" };
 
@@ -235,6 +240,10 @@ export const useOllamaStore = defineStore("ollama", () => {
       } else if (message.type === "message") {
         const content = message.message.content ?? "";
         addAssistantMessage(content, message.message.thinking ?? "");
+      } else if (message.type === "chat_title") {
+        chats.value = chats.value.map((chat) =>
+          chat.id === message.chat.id ? message.chat : chat,
+        );
       } else if (message.type === "error") {
         isGenerating.value = false;
         addAssistantMessage(`Error: ${message.error}`);

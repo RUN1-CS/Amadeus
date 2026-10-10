@@ -119,3 +119,33 @@ export async function buildChatRequest(
     contextWindow,
   };
 }
+
+export async function generateChatTitle(
+  model: string,
+  prompt: string,
+  response: string,
+  contextWindow: number,
+) {
+  const titleResponse = await ollama.chat({
+    model,
+    messages: [
+      {
+        role: "system",
+        content:
+          "Create a concise title for this conversation. Use 3 to 6 words, no quotation marks, markdown, or punctuation at the end. Return only the title.",
+      },
+      {
+        role: "user",
+        content: `User's first message:\n${prompt.slice(0, 2000)}\n\nAssistant's response:\n${response.slice(0, 2000)}`,
+      },
+    ],
+    think: false,
+    stream: false,
+    options: { num_ctx: contextWindow },
+  });
+  return (titleResponse.message.content ?? "")
+    .replace(/["'`*_#]/g, "")
+    .replace(/[.!?]+$/, "")
+    .trim()
+    .slice(0, 100);
+}

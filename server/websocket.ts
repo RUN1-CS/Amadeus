@@ -1,11 +1,17 @@
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 
-import { buildChatRequest, getModels, ollama } from "./ai.js";
+import {
+  buildChatRequest,
+  generateChatTitle,
+  getModels,
+  ollama,
+} from "./ai.js";
 import { getErrorMessage } from "./errors.js";
 import {
   getChatMessages,
   getUserBySession,
   ownsChat,
+  renameChat,
   saveMessage,
   type PublicUser,
 } from "./db.js";
@@ -76,6 +82,22 @@ async function sendMessage(
     assistantContent,
     request.model,
   );
+  if (history.length === 0) {
+    try {
+      const title = await generateChatTitle(
+        request.model,
+        data.prompt ?? "",
+        assistantContent,
+        request.contextWindow,
+      );
+      if (title) {
+        const chat = await renameChat(user.id, data.chatId, title);
+        if (chat) ws.send(JSON.stringify({ type: "chat_title", chat }));
+      }
+    } catch (error) {
+      console.error("Could not generate chat title:", getErrorMessage(error));
+    }
+  }
   ws.send(JSON.stringify({ type: "done" }));
 }
 
