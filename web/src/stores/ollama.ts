@@ -1,7 +1,8 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 
-type ModelValue = string | { name?: string };
+import { createApiClient } from "../services/api";
+import type { Chat, ChatMessage, ModelValue, SavedMessage, User } from "../types/chat";
 
 type ModelMessage = {
   type: "models";
@@ -27,35 +28,6 @@ type ServerMessage =
   | { type: "authenticated"; user: User }
   | { type: "done" };
 
-export type User = {
-  id: number;
-  username: string;
-};
-
-export type Chat = {
-  id: number;
-  title: string;
-  createdAt: string;
-};
-
-type SavedMessage = {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  model?: string;
-  createdAt: string;
-};
-
-const apiBase = `http://${window.location.hostname}:8080`;
-
-export type ChatMessage = {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  time: string;
-  model?: string;
-};
-
 export const useOllamaStore = defineStore("ollama", () => {
   const user = ref<User | null>(null);
   const token = ref(localStorage.getItem("amadeus_token"));
@@ -72,19 +44,9 @@ export const useOllamaStore = defineStore("ollama", () => {
   const thinking = ref(false);
   const streaming = ref(true);
   const messageList = ref<ChatMessage[]>([]);
+  const api = createApiClient(() => token.value);
 
   let socket: WebSocket | null = null;
-
-  async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const headers = new Headers(options.headers);
-    headers.set("Content-Type", "application/json");
-    if (token.value) headers.set("Authorization", `Bearer ${token.value}`);
-
-    const response = await fetch(`${apiBase}${path}`, { ...options, headers });
-    const body = (await response.json()) as T & { error?: string };
-    if (!response.ok) throw new Error(body.error ?? "Request failed.");
-    return body;
-  }
 
   function storeSession(sessionToken: string, sessionUser: User) {
     token.value = sessionToken;
@@ -110,7 +72,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     if (!token.value || user.value) return;
     authLoading.value = true;
     try {
-      const response = await apiRequest<{ user: User }>("/api/auth/me");
+      const response = await api.request<{ user: User }>("/api/auth/me");
       user.value = response.user;
       connectSocket();
       await loadChats();
@@ -129,7 +91,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     authLoading.value = true;
     authError.value = "";
     try {
-      const response = await apiRequest<{ token: string; user: User }>(path, {
+      const response = await api.request<{ token: string; user: User }>(path, {
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
@@ -153,7 +115,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   async function updateAccount(username: string, currentPassword: string, newPassword = "") {
-    const response = await apiRequest<{ user: User }>("/api/auth/account", {
+    const response = await api.request<{ user: User }>("/api/auth/account", {
       method: "PATCH",
       body: JSON.stringify({ username, currentPassword, newPassword }),
     });
@@ -172,7 +134,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   async function loadChats() {
-    const response = await apiRequest<{ chats: Chat[] }>("/api/chats");
+    const response = await api.request<{ chats: Chat[] }>("/api/chats");
     chats.value = response.chats;
     if (chats.value.length === 0) {
       await createNewChat();
@@ -183,7 +145,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   async function createNewChat() {
-    const response = await apiRequest<{ chatId: number }>("/api/chats", {
+    const response = await api.request<{ chatId: number }>("/api/chats", {
       method: "POST",
       body: JSON.stringify({ title: "New conversation" }),
     });
@@ -198,7 +160,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   async function deleteChat(chatId: number) {
-    await apiRequest<{ deleted: boolean }>(`/api/chats/${chatId}`, {
+    await api.request<{ deleted: boolean }>(`/api/chats/${chatId}`, {
       method: "DELETE",
     });
     chats.value = chats.value.filter((chat) => chat.id !== chatId);
@@ -210,7 +172,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   async function renameChat(chatId: number, title: string) {
-    const response = await apiRequest<{ chat: Chat }>(`/api/chats/${chatId}`, {
+    const response = await api.request<{ chat: Chat }>(`/api/chats/${chatId}`, {
       method: "PATCH",
       body: JSON.stringify({ title }),
     });
@@ -223,7 +185,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   async function selectChat(chatId: number) {
-    const response = await apiRequest<{ messages: SavedMessage[] }>(
+    const response = await api.request<{ messages: SavedMessage[] }>(
       `/api/chats/${chatId}/messages`,
     );
     activeChatId.value = chatId;

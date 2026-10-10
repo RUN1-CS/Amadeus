@@ -1,0 +1,115 @@
+import { Ollama } from "ollama";
+
+import {
+  configuredContextWindow,
+  ollamaBaseUrl,
+  reservedOutputTokens,
+} from "./config.js";
+import { getErrorMessage } from "./errors.js";
+import type { SavedMessage } from "./db.js";
+import type { ClientMessage } from "./protocol.js";
+
+export const ollama = new Ollama({ host: ollamaBaseUrl });
+
+type OllamaModels = unknown[];
+
+let cachedModels: OllamaModels = [];
+let modelLoadError: string | undefined;
+const modelContextWindows = new Map<string, number>();
+
+export async function loadModels(): Promise<OllamaModels> {
+  try {
+    const response = await ollama.list();
+    cachedModels = response.models;
+    modelLoadError = undefined;
+  } catch (error) {
+    modelLoadError = getErrorMessage(error);
+    console.error("Could not load Ollama models:", error);
+  }
+  return cachedModels;
+}
+
+export function getModels() {
+  return { models: cachedModels, error: modelLoadError };
+}
+
+async function getModelContextWindow(model: string) {
+  const cached = modelContextWindows.get(model);
+  if (cached) return cached;
+
+  const details = await ollama.show({ model });
+  const modelInfo = details.model_info as unknown;
+  const contextEntry =
+    modelInfo instanceof Map
+      ? [...modelInfo.entries()].find(([key]) =>
+          key.endsWith(".context_length"),
+        )
+      : Object.entries((modelInfo ?? {}) as Record<string, unknown>).find(
+          ([key]) => key.endsWith(".context_length"),
+        );
+  const modelMaxContextWindow =
+    typeof contextEntry?.[1] === "number"
+      ? contextEntry[1]
+      : configuredContextWindow;
+  const contextWindow = Math.min(
+    modelMaxContextWindow,
+    configuredContextWindow,
+  );
+  modelContextWindows.set(model, contextWindow);
+  return contextWindow;
+}
+
+function estimateTokens(content: string) {
+  return Math.ceil(content.length / 4);
+}
+
+function fitMessages(
+  history: SavedMessage[],
+  systemPrompt: string,
+  prompt: string,
+  contextWindow: number,
+) {
+  const budget = Math.max(256, contextWindow - reservedOutputTokens);
+  const messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }> = [{ role: "system", content: systemPrompt }];
+  let tokenCount = estimateTokens(systemPrompt) + estimateTokens(prompt);
+
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const message = history[index];
+    if (!message) continue;
+    const messageTokens = estimateTokens(message.content);
+    if (tokenCount + messageTokens > budget) continue;
+    messages.unshift({ role: message.role, content: message.content });
+    tokenCount += messageTokens;
+  }
+
+  return [...messages, { role: "user", content: prompt }];
+}
+
+export async function buildChatRequest(
+  userName: string,
+  data: ClientMessage,
+  history: SavedMessage[],
+) {
+  const model = data.model ?? "";
+  let prompt = data.prompt ?? "";
+  if (data.tsundere) {
+    prompt +=
+      "\n\nYou are a tsundere. You will respond in a tsundere manner, being cold and aloof, but secretly caring and affectionate.";
+  }
+
+  const contextWindow = await getModelContextWindow(model);
+  return {
+    model,
+    messages: fitMessages(
+      history,
+      `The current user's username is ${userName}. Address them by name when it is natural and useful.`,
+      prompt,
+      contextWindow,
+    ),
+    think: data.thinking ?? false,
+    contextWindow,
+  };
+}

@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-COPY index.ts db.ts tsconfig.json ./
+COPY *.ts tsconfig.json ./
 RUN npm run build
 
 FROM node:24-alpine
