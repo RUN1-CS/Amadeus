@@ -20,7 +20,33 @@ type ErrorMessage = {
   error: string;
 };
 
-type ServerMessage = ModelMessage | AssistantMessage | ErrorMessage | { type: "done" };
+type ServerMessage =
+  | ModelMessage
+  | AssistantMessage
+  | ErrorMessage
+  | { type: "authenticated"; user: User }
+  | { type: "done" };
+
+export type User = {
+  id: number;
+  username: string;
+};
+
+export type Chat = {
+  id: number;
+  title: string;
+  createdAt: string;
+};
+
+type SavedMessage = {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  model?: string;
+  createdAt: string;
+};
+
+const apiBase = `http://${window.location.hostname}:8080`;
 
 export type ChatMessage = {
   id: number;
@@ -31,6 +57,12 @@ export type ChatMessage = {
 };
 
 export const useOllamaStore = defineStore("ollama", () => {
+  const user = ref<User | null>(null);
+  const token = ref(localStorage.getItem("amadeus_token"));
+  const chats = ref<Chat[]>([]);
+  const activeChatId = ref<number | null>(null);
+  const authLoading = ref(false);
+  const authError = ref("");
   const models = ref<string[]>([]);
   const selectedModel = ref("");
   const draft = ref("");
@@ -40,17 +72,138 @@ export const useOllamaStore = defineStore("ollama", () => {
   const streaming = ref(true);
   const messageList = ref<ChatMessage[]>([]);
 
-  const socket = new WebSocket(`ws://${window.location.hostname}:8080`);
+  let socket: WebSocket | null = null;
 
-  socket.addEventListener("open", () => {
-    socket.send(JSON.stringify({ type: "fetch_models" }));
-  });
+  async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const headers = new Headers(options.headers);
+    headers.set("Content-Type", "application/json");
+    if (token.value) headers.set("Authorization", `Bearer ${token.value}`);
 
-  socket.addEventListener("message", (event) => {
-    if (typeof event.data === "string") {
-      receiveMessage(event.data);
+    const response = await fetch(`${apiBase}${path}`, { ...options, headers });
+    const body = (await response.json()) as T & { error?: string };
+    if (!response.ok) throw new Error(body.error ?? "Request failed.");
+    return body;
+  }
+
+  function storeSession(sessionToken: string, sessionUser: User) {
+    token.value = sessionToken;
+    user.value = sessionUser;
+    localStorage.setItem("amadeus_token", sessionToken);
+  }
+
+  function connectSocket() {
+    if (!token.value || socket) return;
+    socket = new WebSocket(`ws://${window.location.hostname}:8080`);
+    socket.addEventListener("open", () => {
+      socket?.send(JSON.stringify({ type: "authenticate", token: token.value }));
+    });
+    socket.addEventListener("message", (event) => {
+      if (typeof event.data === "string") receiveMessage(event.data);
+    });
+    socket.addEventListener("close", () => {
+      socket = null;
+    });
+  }
+
+  async function initializeAuth() {
+    if (!token.value || user.value) return;
+    authLoading.value = true;
+    try {
+      const response = await apiRequest<{ user: User }>("/api/auth/me");
+      user.value = response.user;
+      connectSocket();
+      await loadChats();
+    } catch {
+      logout();
+    } finally {
+      authLoading.value = false;
     }
-  });
+  }
+
+  async function authenticate(
+    path: "/api/auth/login" | "/api/auth/register",
+    username: string,
+    password: string,
+  ) {
+    authLoading.value = true;
+    authError.value = "";
+    try {
+      const response = await apiRequest<{ token: string; user: User }>(path, {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
+      storeSession(response.token, response.user);
+      connectSocket();
+      await loadChats();
+    } catch (error) {
+      authError.value = error instanceof Error ? error.message : "Authentication failed.";
+      throw error;
+    } finally {
+      authLoading.value = false;
+    }
+  }
+
+  function loginUser(username: string, password: string) {
+    return authenticate("/api/auth/login", username, password);
+  }
+
+  function registerUser(username: string, password: string) {
+    return authenticate("/api/auth/register", username, password);
+  }
+
+  function logout() {
+    socket?.close();
+    socket = null;
+    user.value = null;
+    token.value = null;
+    chats.value = [];
+    activeChatId.value = null;
+    messageList.value = [];
+    localStorage.removeItem("amadeus_token");
+  }
+
+  async function loadChats() {
+    const response = await apiRequest<{ chats: Chat[] }>("/api/chats");
+    chats.value = response.chats;
+    if (chats.value.length === 0) {
+      await createNewChat();
+    } else {
+      const firstChat = chats.value[0];
+      if (firstChat) await selectChat(firstChat.id);
+    }
+  }
+
+  async function createNewChat() {
+    const response = await apiRequest<{ chatId: number }>("/api/chats", {
+      method: "POST",
+      body: JSON.stringify({ title: "New conversation" }),
+    });
+    const chat: Chat = {
+      id: response.chatId,
+      title: "New conversation",
+      createdAt: new Date().toISOString(),
+    };
+    chats.value = [chat, ...chats.value];
+    activeChatId.value = chat.id;
+    messageList.value = [];
+  }
+
+  async function selectChat(chatId: number) {
+    const response = await apiRequest<{ messages: SavedMessage[] }>(
+      `/api/chats/${chatId}/messages`,
+    );
+    activeChatId.value = chatId;
+    messageList.value = response.messages.map((message) => ({
+      id: message.id,
+      role: message.role,
+      content: message.content,
+      model: message.model,
+      time: new Date(message.createdAt).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    }));
+  }
 
   function setModels(values: ModelValue[]) {
     const nextModels = values
@@ -68,6 +221,8 @@ export const useOllamaStore = defineStore("ollama", () => {
       const message = JSON.parse(rawMessage) as ServerMessage;
       if (message.type === "models" && Array.isArray(message.models)) {
         setModels(message.models);
+      } else if (message.type === "authenticated") {
+        socket?.send(JSON.stringify({ type: "fetch_models" }));
       } else if (message.type === "message") {
         const content = message.message.content ?? "";
         addAssistantMessage(content);
@@ -108,7 +263,14 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   function sendMessage() {
     const content = draft.value.trim();
-    if (!content || isGenerating.value || socket.readyState !== WebSocket.OPEN) return;
+    if (
+      !content ||
+      !activeChatId.value ||
+      isGenerating.value ||
+      !socket ||
+      socket.readyState !== WebSocket.OPEN
+    )
+      return;
 
     messageList.value.push({
       id: Date.now(),
@@ -122,6 +284,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     socket.send(
       JSON.stringify({
         type: "message",
+        chatId: activeChatId.value,
         model: selectedModel.value,
         prompt: content,
         tsundere: tsundere.value,
@@ -132,6 +295,12 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   return {
+    user,
+    token,
+    chats,
+    activeChatId,
+    authLoading,
+    authError,
     models,
     selectedModel,
     draft,
@@ -145,5 +314,12 @@ export const useOllamaStore = defineStore("ollama", () => {
     selectPrompt,
     clearMessages,
     sendMessage,
+    initializeAuth,
+    loginUser,
+    registerUser,
+    logout,
+    loadChats,
+    createNewChat,
+    selectChat,
   };
 });

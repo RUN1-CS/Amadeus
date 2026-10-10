@@ -6,6 +6,7 @@
 **/dist-ssr/
 **/.vite/
 **/*.tsbuildinfo
+**/data/
 
 # Environment files
 .env

@@ -1,15 +1,46 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref, watch, watchEffect } from "vue";
 import { storeToRefs } from "pinia";
+import { useRoute, useRouter } from "vue-router";
 
 import { useOllamaStore } from "./stores/ollama";
 
 const ollamaStore = useOllamaStore();
-const { draft, isGenerating, messageList, tsundere, thinking, streaming } =
-  storeToRefs(ollamaStore);
-const { clearMessages, selectPrompt, sendMessage } = ollamaStore;
+const route = useRoute();
+const router = useRouter();
+const {
+  user,
+  authLoading,
+  draft,
+  isGenerating,
+  messageList,
+  tsundere,
+  thinking,
+  streaming,
+  chats,
+  activeChatId,
+} = storeToRefs(ollamaStore);
+const { selectPrompt, sendMessage, initializeAuth, createNewChat, selectChat, logout } =
+  ollamaStore;
 
-const messageCount = computed(() => messageList.value.length);
+const activeChat = computed(() => chats.value.find((chat) => chat.id === activeChatId.value));
+const chatScroll = ref<HTMLElement | null>(null);
+
+async function scrollToLatest() {
+  await nextTick();
+  if (chatScroll.value) chatScroll.value.scrollTop = chatScroll.value.scrollHeight;
+}
+
+watch(messageList, () => void scrollToLatest(), { deep: true, flush: "post" });
+
+void initializeAuth();
+watchEffect(() => {
+  if (authLoading.value) return;
+  if (!user.value && route.path === "/") void router.replace("/login");
+  if (user.value && (route.path === "/login" || route.path === "/register")) {
+    void router.replace("/");
+  }
+});
 
 function handleComposerKeydown(event: KeyboardEvent) {
   if (event.key === "Enter" && !event.shiftKey) {
@@ -19,7 +50,8 @@ function handleComposerKeydown(event: KeyboardEvent) {
 }
 </script>
 <template>
-  <main class="flex min-h-screen bg-[#f7f5f0] text-[#24221f]">
+  <RouterView v-if="route.path !== '/'" />
+  <main v-else-if="user" class="flex h-screen overflow-hidden bg-[#f7f5f0] text-[#24221f]">
     <aside
       class="hidden w-[278px] shrink-0 flex-col border-r border-[#ddd8ce] bg-[#ebe8e1] px-[18px] py-7 md:flex"
     >
@@ -45,7 +77,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
 
       <button
         class="flex w-full items-center gap-2.5 rounded-lg border border-[#d8d2c7] bg-[#f5f2ec] px-3.5 py-3 text-left text-xs font-bold text-[#4d4841] shadow-sm transition hover:border-[#bc8061] hover:text-[#a35232]"
-        @click="clearMessages"
+        @click="createNewChat"
       >
         <span class="text-lg leading-3 text-[#bf6745]">+</span> New conversation
       </button>
@@ -55,18 +87,25 @@ function handleComposerKeydown(event: KeyboardEvent) {
           class="flex items-center justify-between px-2.5 pb-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[#9a948b]"
         >
           <span>Today</span>
-          <span class="text-[#b2aca3]">{{ messageCount }}</span>
+          <span class="text-[#b2aca3]">{{ chats.length }}</span>
         </div>
-        <button
-          class="flex w-full items-center gap-2.5 rounded-lg bg-[#f7f5f0] px-2.5 py-3 text-left text-[#4d4841] shadow-sm"
-        >
-          <span class="size-1.5 shrink-0 rounded-full bg-[#ca7652]"></span>
-          <span class="flex min-w-0 flex-1 flex-col gap-1">
-            <strong class="truncate text-[11px]">Untitled conversation</strong>
-            <small class="font-mono text-[9px] text-[#a19a90]">Just now</small>
-          </span>
-          <span class="text-[11px] tracking-[2px] text-[#aaa39a]">•••</span>
-        </button>
+        <div class="space-y-1">
+          <button
+            v-for="chat in chats"
+            :key="chat.id"
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-3 text-left text-[#4d4841] transition hover:bg-[#f7f5f0]"
+            :class="chat.id === activeChatId ? 'bg-[#f7f5f0] shadow-sm' : ''"
+            @click="selectChat(chat.id)"
+          >
+            <span class="size-1.5 shrink-0 rounded-full bg-[#ca7652]"></span>
+            <span class="flex min-w-0 flex-1 flex-col gap-1">
+              <strong class="truncate text-[11px]">{{ chat.title }}</strong>
+              <small class="font-mono text-[9px] text-[#a19a90]">{{
+                new Date(chat.createdAt).toLocaleDateString()
+              }}</small>
+            </span>
+          </button>
+        </div>
       </div>
 
       <div class="mt-auto border-t border-[#d9d4ca] px-2 pt-4">
@@ -74,14 +113,14 @@ function handleComposerKeydown(event: KeyboardEvent) {
           <span class="size-1.5 rounded-full bg-[#74a66d]"></span> Ollama connected
         </div>
         <div class="mt-4 flex gap-2 text-[10px] text-[#b1aba2]">
-          <button class="text-[#9e988f]">Settings</button>
+          <span class="max-w-[130px] truncate text-[#777068]">{{ user.username }}</span>
           <span>·</span>
-          <button class="text-[#9e988f]">Keyboard shortcuts</button>
+          <button class="text-[#9e988f] hover:text-[#a95737]" @click="logout">Log out</button>
         </div>
       </div>
     </aside>
 
-    <section class="flex min-h-0 min-w-0 flex-1 flex-col">
+    <section class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <header
         class="flex items-center justify-between gap-5 border-b border-[#e5e1d9] px-5 py-6 sm:px-[6.5%]"
       >
@@ -91,7 +130,9 @@ function handleComposerKeydown(event: KeyboardEvent) {
           >
             <span class="size-1.5 rounded-full bg-[#74a66d]"></span> Private workspace
           </div>
-          <h1 class="text-xl font-bold tracking-tight sm:text-2xl">Untitled conversation</h1>
+          <h1 class="text-xl font-bold tracking-tight sm:text-2xl">
+            {{ activeChat?.title ?? "Conversation" }}
+          </h1>
         </div>
         <div class="flex items-center gap-3">
           <span
@@ -108,7 +149,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
       </header>
 
       <div class="flex min-h-0 flex-1 flex-col px-5 py-7 sm:px-[6.5%]">
-        <div class="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div ref="chatScroll" class="min-h-0 flex-1 overflow-y-auto pr-1">
           <div
             v-if="messageList.length === 0"
             class="flex min-h-full flex-col items-center justify-center py-16 text-center"
