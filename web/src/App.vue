@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, watch, watchEffect } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
+import DOMPurify from "dompurify";
+import { marked } from "marked";
 
 import { useOllamaStore } from "./stores/ollama";
 
@@ -87,6 +89,10 @@ function handleComposerKeydown(event: KeyboardEvent) {
     event.preventDefault();
     void sendMessage();
   }
+}
+
+function renderMarkdown(content: string) {
+  return DOMPurify.sanitize(marked.parse(content, { async: false }));
 }
 </script>
 <template>
@@ -266,9 +272,10 @@ function handleComposerKeydown(event: KeyboardEvent) {
                   </summary>
                   <div class="mt-2 whitespace-pre-wrap leading-6">{{ message.thinking }}</div>
                 </details>
-                <p class="whitespace-pre-wrap text-sm leading-7 text-[#514b44]">
-                  {{ message.content }}
-                </p>
+                <div
+                  class="assistant-markdown text-sm leading-7 text-[#514b44]"
+                  v-html="renderMarkdown(message.content)"
+                ></div>
               </div>
             </article>
             <div v-if="isGenerating" class="flex items-center gap-3">
