@@ -5,4 +5,6 @@ export const configuredContextWindow = Math.max(
   512,
   Number(process.env.OLLAMA_NUM_CTX ?? 4096),
 );
+export const embeddingModel =
+  process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text";
 export const reservedOutputTokens = 1024;

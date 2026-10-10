@@ -4,6 +4,7 @@ import {
   buildChatRequest,
   generateChatTitle,
   getModels,
+  getMessageEmbedding,
   ollama,
 } from "./ai.js";
 import { getErrorMessage } from "./errors.js";
@@ -36,18 +37,21 @@ async function sendMessage(
   if (!history)
     throw new Error("Choose a valid chat before sending a message.");
   const request = await buildChatRequest(
+    user.id,
     user.username,
     user.aboutMe,
     user.customBehavior,
     data,
     history,
   );
+  const userEmbedding = await getMessageEmbedding(data.prompt ?? "");
   await saveMessage(
     user.id,
     data.chatId,
     "user",
     data.prompt ?? "",
     request.model,
+    userEmbedding,
   );
   let assistantContent = "";
 
@@ -81,6 +85,7 @@ async function sendMessage(
     "assistant",
     assistantContent,
     request.model,
+    await getMessageEmbedding(assistantContent),
   );
   if (history.length === 0) {
     try {

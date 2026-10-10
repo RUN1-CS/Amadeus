@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: amadeus
       POSTGRES_USER: amadeus
@@ -20,6 +20,7 @@ services:
       dockerfile: Dockerfile
     environment:
       OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
       OLLAMA_NUM_CTX: 4096
       DATABASE_URL: postgres://amadeus:amadeus@postgres:5432/amadeus
     extra_hosts:

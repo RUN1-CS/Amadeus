@@ -18,6 +18,9 @@ export type SavedMessage = {
   model?: string;
   createdAt: string;
 };
+export type SimilarMessage = Pick<SavedMessage, "role" | "content"> & {
+  similarity: number;
+};
 
 type UserRow = {
   id: number;
@@ -208,16 +211,54 @@ export async function saveMessage(
   role: "user" | "assistant",
   content: string,
   model?: string,
+  embedding?: number[],
 ) {
   if (!(await ownsChat(userId, chatId))) return false;
+  const sender = role === "user" ? "user" : (model ?? "assistant");
   await pool.query(
-    `INSERT INTO messages (chat_id, user_id, sender, content) VALUES ($1, $2, $3, $4)`,
-    [
-      chatId,
-      userId,
-      role === "user" ? "user" : (model ?? "assistant"),
-      content,
-    ],
+    `INSERT INTO messages (chat_id, user_id, sender, content)
+     VALUES ($1, $2, $3, $4)`,
+    [chatId, userId, sender, content],
   );
+  if (embedding) {
+    await pool.query(
+      `INSERT INTO memories (user_id, content, source, metadata, embedding)
+       VALUES ($1, $2, $3, $4, $5::vector)`,
+      [
+        userId,
+        content,
+        "message",
+        JSON.stringify({ chatId, role, model: model ?? null }),
+        JSON.stringify(embedding),
+      ],
+    );
+  }
   return true;
+}
+
+export async function searchSimilarMessages(
+  userId: number,
+  embedding: number[],
+  limit: number,
+): Promise<SimilarMessage[]> {
+  const result = await pool.query<{
+    role: string;
+    content: string;
+    similarity: number;
+  }>(
+    `SELECT memories.metadata->>'role' AS role, memories.content,
+       1 - (memories.embedding <=> $1::vector) AS similarity
+     FROM memories
+     WHERE memories.user_id = $2
+       AND memories.source = 'message'
+       AND memories.embedding IS NOT NULL
+     ORDER BY memories.embedding <=> $1::vector
+     LIMIT $3`,
+    [JSON.stringify(embedding), userId, limit],
+  );
+  return result.rows.map((message) => ({
+    role: message.role === "user" ? "user" : "assistant",
+    content: message.content,
+    similarity: message.similarity,
+  }));
 }
