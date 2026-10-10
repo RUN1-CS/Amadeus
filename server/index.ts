@@ -10,13 +10,16 @@ import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import {
   createChat,
   createSession,
+  deleteChat,
   getChatMessages,
   getUserBySession,
   listChats,
   login,
   ownsChat,
   register,
+  renameChat,
   saveMessage,
+  updateAccount,
   type PublicUser,
   type SavedMessage,
 } from "./db.js";
@@ -152,6 +155,41 @@ async function handleHttpRequest(
       return;
     }
 
+    if (request.method === "PATCH" && path === "/api/auth/account") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      const body = await readJson(request);
+      const username =
+        typeof body.username === "string" ? body.username.trim() : "";
+      const currentPassword =
+        typeof body.currentPassword === "string" ? body.currentPassword : "";
+      const newPassword =
+        typeof body.newPassword === "string" ? body.newPassword : "";
+      if (
+        !username ||
+        !currentPassword ||
+        (newPassword && newPassword.length < 8)
+      ) {
+        sendJson(response, 400, {
+          error:
+            "Enter a username, current password, and a valid new password.",
+        });
+        return;
+      }
+      const updatedUser = await updateAccount(
+        user.id,
+        currentPassword,
+        username,
+        newPassword || undefined,
+      );
+      if (!updatedUser) {
+        sendJson(response, 401, { error: "Current password is incorrect." });
+        return;
+      }
+      sendJson(response, 200, { user: updatedUser });
+      return;
+    }
+
     if (path === "/api/chats" && request.method === "GET") {
       const user = await requireUser(request, response);
       if (user) sendJson(response, 200, { chats: await listChats(user.id) });
@@ -167,6 +205,37 @@ async function handleHttpRequest(
         typeof body.title === "string" ? body.title : undefined,
       );
       sendJson(response, 201, { chatId });
+      return;
+    }
+
+    const chatMatch = path.match(/^\/api\/chats\/(\d+)$/);
+    if (chatMatch && request.method === "PATCH") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      const body = await readJson(request);
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      if (!title) {
+        sendJson(response, 400, { error: "Chat name cannot be empty." });
+        return;
+      }
+      const chat = await renameChat(user.id, Number(chatMatch[1]), title);
+      if (!chat) {
+        sendJson(response, 404, { error: "Chat not found." });
+        return;
+      }
+      sendJson(response, 200, { chat });
+      return;
+    }
+
+    if (chatMatch && request.method === "DELETE") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      const deleted = await deleteChat(user.id, Number(chatMatch[1]));
+      if (!deleted) {
+        sendJson(response, 404, { error: "Chat not found." });
+        return;
+      }
+      sendJson(response, 200, { deleted: true });
       return;
     }
 
@@ -231,12 +300,16 @@ function estimateTokens(content: string) {
 
 function fitMessages(
   history: SavedMessage[],
+  systemPrompt: string,
   currentPrompt: string,
   contextWindow: number,
 ) {
   const budget = Math.max(256, contextWindow - reservedOutputTokens);
-  const selected: Array<{ role: "user" | "assistant"; content: string }> = [];
-  let tokenCount = estimateTokens(currentPrompt);
+  const selected: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }> = [{ role: "system", content: systemPrompt }];
+  let tokenCount = estimateTokens(systemPrompt) + estimateTokens(currentPrompt);
 
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const message = history[index];
@@ -270,7 +343,12 @@ async function sendMessage(
   if (!history)
     throw new Error("Choose a valid chat before sending a message.");
   const contextWindow = await getModelContextWindow(model);
-  const messages = fitMessages(history, prompt, contextWindow);
+  const messages = fitMessages(
+    history,
+    `The current user's username is ${user.username}. Address them by name when it is natural and useful.`,
+    prompt,
+    contextWindow,
+  );
   await saveMessage(user.id, data.chatId, "user", data.prompt ?? "", model);
   let assistantContent = "";
 

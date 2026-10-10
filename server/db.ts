@@ -59,6 +59,32 @@ export async function login(username: string, password: string) {
     : null;
 }
 
+export async function updateAccount(
+  userId: number,
+  currentPassword: string,
+  username: string,
+  newPassword?: string,
+) {
+  const result = await pool.query<UserRow>(
+    "SELECT id, username, password_hash FROM users WHERE id = $1",
+    [userId],
+  );
+  const user = result.rows[0];
+  if (!user || !verifyPassword(currentPassword, user.password_hash))
+    return null;
+
+  const updated = await pool.query<{ id: number; username: string }>(
+    `UPDATE users SET username = $1, password_hash = COALESCE($2, password_hash)
+     WHERE id = $3 RETURNING id, username`,
+    [
+      username.trim().toLowerCase(),
+      newPassword ? hashPassword(newPassword) : null,
+      userId,
+    ],
+  );
+  return publicUser(updated.rows[0]!);
+}
+
 export async function createSession(userId: number) {
   const token = randomBytes(32).toString("hex");
   await pool.query(
@@ -94,6 +120,31 @@ export async function createChat(userId: number, title = "New conversation") {
     [userId, title.trim() || "New conversation"],
   );
   return result.rows[0]!.id;
+}
+
+export async function deleteChat(userId: number, chatId: number) {
+  const result = await pool.query(
+    "DELETE FROM chats WHERE id = $1 AND user_id = $2",
+    [chatId, userId],
+  );
+  return result.rowCount === 1;
+}
+
+export async function renameChat(
+  userId: number,
+  chatId: number,
+  title: string,
+) {
+  const result = await pool.query<{
+    id: number;
+    title: string;
+    createdAt: string;
+  }>(
+    `UPDATE chats SET title = $1 WHERE id = $2 AND user_id = $3
+     RETURNING id, title, created_at AS "createdAt"`,
+    [title.trim(), chatId, userId],
+  );
+  return result.rows[0] ?? null;
 }
 
 export async function ownsChat(userId: number, chatId: number) {

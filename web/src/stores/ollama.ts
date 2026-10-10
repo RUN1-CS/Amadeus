@@ -61,6 +61,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   const token = ref(localStorage.getItem("amadeus_token"));
   const chats = ref<Chat[]>([]);
   const activeChatId = ref<number | null>(null);
+  const sidebarVisible = ref(localStorage.getItem("amadeus_sidebar") !== "hidden");
   const authLoading = ref(false);
   const authError = ref("");
   const models = ref<string[]>([]);
@@ -151,6 +152,14 @@ export const useOllamaStore = defineStore("ollama", () => {
     return authenticate("/api/auth/register", username, password);
   }
 
+  async function updateAccount(username: string, currentPassword: string, newPassword = "") {
+    const response = await apiRequest<{ user: User }>("/api/auth/account", {
+      method: "PATCH",
+      body: JSON.stringify({ username, currentPassword, newPassword }),
+    });
+    user.value = response.user;
+  }
+
   function logout() {
     socket?.close();
     socket = null;
@@ -186,6 +195,31 @@ export const useOllamaStore = defineStore("ollama", () => {
     chats.value = [chat, ...chats.value];
     activeChatId.value = chat.id;
     messageList.value = [];
+  }
+
+  async function deleteChat(chatId: number) {
+    await apiRequest<{ deleted: boolean }>(`/api/chats/${chatId}`, {
+      method: "DELETE",
+    });
+    chats.value = chats.value.filter((chat) => chat.id !== chatId);
+    if (activeChatId.value === chatId) {
+      const nextChat = chats.value[0];
+      if (nextChat) await selectChat(nextChat.id);
+      else await createNewChat();
+    }
+  }
+
+  async function renameChat(chatId: number, title: string) {
+    const response = await apiRequest<{ chat: Chat }>(`/api/chats/${chatId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    });
+    chats.value = chats.value.map((chat) => (chat.id === chatId ? response.chat : chat));
+  }
+
+  function setSidebarVisible(visible: boolean) {
+    sidebarVisible.value = visible;
+    localStorage.setItem("amadeus_sidebar", visible ? "visible" : "hidden");
   }
 
   async function selectChat(chatId: number) {
@@ -299,6 +333,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     token,
     chats,
     activeChatId,
+    sidebarVisible,
     authLoading,
     authError,
     models,
@@ -317,9 +352,13 @@ export const useOllamaStore = defineStore("ollama", () => {
     initializeAuth,
     loginUser,
     registerUser,
+    updateAccount,
     logout,
     loadChats,
     createNewChat,
+    deleteChat,
+    renameChat,
     selectChat,
+    setSidebarVisible,
   };
 });
