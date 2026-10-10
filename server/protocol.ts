@@ -6,5 +6,6 @@ export type ClientMessage = {
   prompt?: string;
   tsundere?: boolean;
   thinking?: boolean;
+  wikiSearch?: boolean;
   stream?: boolean;
 };

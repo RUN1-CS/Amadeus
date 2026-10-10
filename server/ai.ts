@@ -8,6 +8,7 @@ import {
 import { getErrorMessage } from "./errors.js";
 import type { SavedMessage } from "./db.js";
 import type { ClientMessage } from "./protocol.js";
+import { searchWikipedia } from "./wiki_search.js";
 
 export const ollama = new Ollama({ host: ollamaBaseUrl });
 
@@ -102,6 +103,7 @@ export async function buildChatRequest(
       "\n\nYou are a tsundere. You will respond in a tsundere manner, being cold and aloof, but secretly caring and affectionate.";
   }
 
+  const wikipediaContext = data.wikiSearch ? await searchWikipedia(prompt) : "";
   const contextWindow = await getModelContextWindow(model);
   const systemPrompt = [
     "You are the AI assistant. The person sending the user messages is the human user. Never claim to be the user or speak as if you are the user.",
@@ -111,6 +113,9 @@ export async function buildChatRequest(
       : "",
     customBehavior.trim()
       ? `The human user's preferences for your behavior:\n${customBehavior.trim()}`
+      : "",
+    wikipediaContext
+      ? `Relevant Wikipedia context for the current request. Treat it as reference material, verify uncertainty, and cite the provided source links when useful:\n${wikipediaContext}`
       : "",
   ]
     .filter(Boolean)
