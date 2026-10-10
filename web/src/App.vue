@@ -21,7 +21,6 @@ const {
   messageList,
   tsundere,
   thinking,
-  wikiSearch,
   streaming,
   chats,
   activeChatId,
@@ -418,14 +417,6 @@ function renderMarkdown(content: string) {
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
                   <input v-model="thinking" type="checkbox" class="accent-[var(--theme-accent)]" />
                   Thinking
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input
-                    v-model="wikiSearch"
-                    type="checkbox"
-                    class="accent-[var(--theme-accent)]"
-                  />
-                  Wikipedia
                 </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
                   <input v-model="streaming" type="checkbox" class="accent-[var(--theme-accent)]" />

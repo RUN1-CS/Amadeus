@@ -48,7 +48,6 @@ export const useOllamaStore = defineStore("ollama", () => {
   const isGenerating = ref(false);
   const tsundere = ref(false);
   const thinking = ref(false);
-  const wikiSearch = ref(false);
   const streaming = ref(true);
   const messageList = ref<ChatMessage[]>([]);
   const api = createApiClient(() => token.value);
@@ -310,7 +309,6 @@ export const useOllamaStore = defineStore("ollama", () => {
         prompt: content,
         tsundere: tsundere.value,
         thinking: thinking.value,
-        wikiSearch: wikiSearch.value,
         stream: streaming.value,
       }),
     );
@@ -330,7 +328,6 @@ export const useOllamaStore = defineStore("ollama", () => {
     isGenerating,
     tsundere,
     thinking,
-    wikiSearch,
     streaming,
     messageList,
     setModels,

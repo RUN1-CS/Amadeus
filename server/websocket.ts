@@ -2,10 +2,10 @@ import { WebSocketServer, type RawData, type WebSocket } from "ws";
 
 import {
   buildChatRequest,
+  chatWithTools,
   generateChatTitle,
   getModels,
   getMessageEmbedding,
-  ollama,
 } from "./ai.js";
 import { getErrorMessage } from "./errors.js";
 import {
@@ -55,29 +55,9 @@ async function sendMessage(
   );
   let assistantContent = "";
 
-  if (data.stream) {
-    const response = await ollama.chat({
-      model: request.model,
-      messages: request.messages,
-      think: request.think,
-      stream: true,
-      options: { num_ctx: request.contextWindow },
-    });
-    for await (const chunk of response) {
-      assistantContent += chunk.message.content ?? "";
-      ws.send(JSON.stringify({ type: "message", message: chunk.message }));
-    }
-  } else {
-    const response = await ollama.chat({
-      model: request.model,
-      messages: request.messages,
-      think: request.think,
-      stream: false,
-      options: { num_ctx: request.contextWindow },
-    });
-    assistantContent = response.message.content ?? "";
-    ws.send(JSON.stringify({ type: "message", message: response.message }));
-  }
+  const response = await chatWithTools(request);
+  assistantContent = response.message.content ?? "";
+  ws.send(JSON.stringify({ type: "message", message: response.message }));
 
   await saveMessage(
     user.id,
