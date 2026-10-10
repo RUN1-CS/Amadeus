@@ -1,0 +1,22 @@
+{
+  "name": "amadeus-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch index.ts",
+    "start": "node dist/index.js",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ollama": "^0.6.4",
+    "ws": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.0",
+    "tsx": "^4.0.0",
+    "typescript": "^6.0.0"
+  }
+}

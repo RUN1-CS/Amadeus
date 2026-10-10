@@ -1,0 +1,33 @@
+# Dependencies
+**/node_modules/
+
+# Build output
+**/dist/
+**/dist-ssr/
+**/.vite/
+**/*.tsbuildinfo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test and coverage output
+**/coverage/
+
+# Local Docker overrides
+docker-compose.override.yml
+compose.override.yml
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

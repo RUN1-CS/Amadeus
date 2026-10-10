@@ -1,0 +1,22 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    restart: unless-stopped
