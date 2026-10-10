@@ -1,6 +1,8 @@
 export type User = {
   id: number;
   username: string;
+  aboutMe: string;
+  customBehavior: string;
 };
 
 export type Chat = {
@@ -21,6 +23,7 @@ export type ChatMessage = {
   id: number;
   role: "user" | "assistant";
   content: string;
+  thinking?: string;
   time: string;
   model?: string;
 };

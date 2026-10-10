@@ -13,6 +13,7 @@ type AssistantMessage = {
   type: "message";
   message: {
     content?: string;
+    thinking?: string;
   };
 };
 
@@ -114,10 +115,22 @@ export const useOllamaStore = defineStore("ollama", () => {
     return authenticate("/api/auth/register", username, password);
   }
 
-  async function updateAccount(username: string, currentPassword: string, newPassword = "") {
+  async function updateAccount(
+    username: string,
+    currentPassword: string,
+    newPassword = "",
+    aboutMe = "",
+    customBehavior = "",
+  ) {
     const response = await api.request<{ user: User }>("/api/auth/account", {
       method: "PATCH",
-      body: JSON.stringify({ username, currentPassword, newPassword }),
+      body: JSON.stringify({
+        username,
+        currentPassword,
+        newPassword,
+        aboutMe,
+        customBehavior,
+      }),
     });
     user.value = response.user;
   }
@@ -221,7 +234,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         socket?.send(JSON.stringify({ type: "fetch_models" }));
       } else if (message.type === "message") {
         const content = message.message.content ?? "";
-        addAssistantMessage(content);
+        addAssistantMessage(content, message.message.thinking ?? "");
       } else if (message.type === "error") {
         isGenerating.value = false;
         addAssistantMessage(`Error: ${message.error}`);
@@ -233,16 +246,18 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
-  function addAssistantMessage(content: string) {
+  function addAssistantMessage(content: string, thinkingContent = "") {
     const lastMessage = messageList.value.at(-1);
 
     if (lastMessage?.role === "assistant" && isGenerating.value) {
       lastMessage.content += content;
+      lastMessage.thinking = (lastMessage.thinking ?? "") + thinkingContent;
     } else {
       messageList.value.push({
         id: Date.now(),
         role: "assistant",
         content,
+        thinking: thinkingContent,
         time: "now",
         model: selectedModel.value,
       });

@@ -90,6 +90,8 @@ function fitMessages(
 
 export async function buildChatRequest(
   userName: string,
+  aboutMe: string,
+  customBehavior: string,
   data: ClientMessage,
   history: SavedMessage[],
 ) {
@@ -101,14 +103,18 @@ export async function buildChatRequest(
   }
 
   const contextWindow = await getModelContextWindow(model);
+  const systemPrompt = [
+    `The current user's username is ${userName}. Address them by name when it is natural and useful.`,
+    aboutMe.trim() ? `About the user:\n${aboutMe.trim()}` : "",
+    customBehavior.trim()
+      ? `Underlying instructions from the user:\n${customBehavior.trim()}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   return {
     model,
-    messages: fitMessages(
-      history,
-      `The current user's username is ${userName}. Address them by name when it is natural and useful.`,
-      prompt,
-      contextWindow,
-    ),
+    messages: fitMessages(history, systemPrompt, prompt, contextWindow),
     think: data.thinking ?? false,
     contextWindow,
   };

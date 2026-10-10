@@ -105,6 +105,9 @@ async function handleRequest(
         typeof body.currentPassword === "string" ? body.currentPassword : "";
       const newPassword =
         typeof body.newPassword === "string" ? body.newPassword : "";
+      const aboutMe = typeof body.aboutMe === "string" ? body.aboutMe : "";
+      const customBehavior =
+        typeof body.customBehavior === "string" ? body.customBehavior : "";
       if (
         !username ||
         !currentPassword ||
@@ -121,6 +124,8 @@ async function handleRequest(
         currentPassword,
         username,
         newPassword || undefined,
+        aboutMe,
+        customBehavior,
       );
       if (!updatedUser) {
         sendJson(response, 401, { error: "Current password is incorrect." });

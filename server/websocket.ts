@@ -29,7 +29,13 @@ async function sendMessage(
   const history = await getChatMessages(user.id, data.chatId);
   if (!history)
     throw new Error("Choose a valid chat before sending a message.");
-  const request = await buildChatRequest(user.username, data, history);
+  const request = await buildChatRequest(
+    user.username,
+    user.aboutMe,
+    user.customBehavior,
+    data,
+    history,
+  );
   await saveMessage(
     user.id,
     data.chatId,

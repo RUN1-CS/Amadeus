@@ -9,6 +9,8 @@ const router = useRouter();
 const store = useOllamaStore();
 const { user, sidebarVisible } = storeToRefs(store);
 const username = ref(user.value?.username ?? "");
+const aboutMe = ref(user.value?.aboutMe ?? "");
+const customBehavior = ref(user.value?.customBehavior ?? "");
 const currentPassword = ref("");
 const newPassword = ref("");
 const saveError = ref("");
@@ -18,10 +20,17 @@ async function saveAccount() {
   saveError.value = "";
   saved.value = false;
   try {
-    await store.updateAccount(username.value, currentPassword.value, newPassword.value);
+    await store.updateAccount(
+      username.value,
+      currentPassword.value,
+      newPassword.value,
+      aboutMe.value,
+      customBehavior.value,
+    );
     currentPassword.value = "";
     newPassword.value = "";
     saved.value = true;
+    window.location.reload();
   } catch (error) {
     saveError.value = error instanceof Error ? error.message : "Could not update account.";
   }
@@ -65,6 +74,24 @@ async function saveAccount() {
                 autocomplete="username"
                 class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[#f7f5f0] px-3 py-2.5 outline-none focus:border-[#c36b46]"
               />
+            </label>
+            <label class="block text-sm font-semibold">
+              About Me
+              <textarea
+                v-model="aboutMe"
+                rows="4"
+                placeholder="Share details that help your assistant understand you."
+                class="mt-2 w-full resize-y rounded-lg border border-[#d8d2c7] bg-[#f7f5f0] px-3 py-2.5 outline-none focus:border-[#c36b46]"
+              ></textarea>
+            </label>
+            <label class="block text-sm font-semibold">
+              Custom Behavior
+              <textarea
+                v-model="customBehavior"
+                rows="4"
+                placeholder="Describe how you want the assistant to respond."
+                class="mt-2 w-full resize-y rounded-lg border border-[#d8d2c7] bg-[#f7f5f0] px-3 py-2.5 outline-none focus:border-[#c36b46]"
+              ></textarea>
             </label>
             <label class="block text-sm font-semibold">
               Current password

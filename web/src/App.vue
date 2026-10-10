@@ -256,6 +256,16 @@ function handleComposerKeydown(event: KeyboardEvent) {
                   }}</strong>
                   <span class="font-mono text-[10px] text-[#aaa39a]">{{ message.time }}</span>
                 </div>
+                <details
+                  v-if="message.thinking"
+                  class="mb-3 rounded-lg border border-[#e3ddd3] bg-[#f4f1eb] px-3 py-2 text-xs text-[#746c62]"
+                  :open="isGenerating"
+                >
+                  <summary class="cursor-pointer select-none font-semibold text-[#635a50]">
+                    Thinking{{ isGenerating ? "..." : "" }}
+                  </summary>
+                  <div class="mt-2 whitespace-pre-wrap leading-6">{{ message.thinking }}</div>
+                </details>
                 <p class="whitespace-pre-wrap text-sm leading-7 text-[#514b44]">
                   {{ message.content }}
                 </p>
@@ -266,7 +276,8 @@ function handleComposerKeydown(event: KeyboardEvent) {
                 class="grid size-8 place-items-center rounded-lg bg-[#c36b46] font-mono text-xs text-[#fffaf4]"
                 >O</span
               >
-              <span class="flex gap-1 rounded-full bg-[#ebe8e1] px-3 py-2"
+              <span
+                class="flex items-center gap-2 rounded-full bg-[#ebe8e1] px-3 py-2 text-xs text-[#746c62]"
                 ><i class="size-1.5 animate-pulse rounded-full bg-[#a99f94]"></i
                 ><i
                   class="size-1.5 animate-pulse rounded-full bg-[#a99f94] [animation-delay:150ms]"
@@ -274,7 +285,8 @@ function handleComposerKeydown(event: KeyboardEvent) {
                 ><i
                   class="size-1.5 animate-pulse rounded-full bg-[#a99f94] [animation-delay:300ms]"
                 ></i
-              ></span>
+                ><span>{{ thinking ? "Thinking..." : "Generating..." }}</span></span
+              >
             </div>
           </div>
         </div>

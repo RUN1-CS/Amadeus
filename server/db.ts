@@ -4,7 +4,12 @@ import { Pool } from "pg";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-export type PublicUser = { id: number; username: string };
+export type PublicUser = {
+  id: number;
+  username: string;
+  aboutMe: string;
+  customBehavior: string;
+};
 export type Chat = { id: number; title: string; createdAt: string };
 export type SavedMessage = {
   id: number;
@@ -14,11 +19,24 @@ export type SavedMessage = {
   createdAt: string;
 };
 
-type UserRow = { id: number; username: string; password_hash: string };
-type SessionRow = { id: number; username: string };
+type UserRow = {
+  id: number;
+  username: string;
+  password_hash: string;
+  about_me?: string;
+  custom_behavior?: string;
+};
+type SessionRow = UserRow;
 
-function publicUser(user: Pick<UserRow, "id" | "username">): PublicUser {
-  return { id: user.id, username: user.username };
+function publicUser(
+  user: Pick<UserRow, "id" | "username"> & Partial<UserRow>,
+): PublicUser {
+  return {
+    id: user.id,
+    username: user.username,
+    aboutMe: user.about_me ?? "",
+    customBehavior: user.custom_behavior ?? "",
+  };
 }
 
 function hashPassword(
@@ -50,7 +68,7 @@ export async function register(username: string, password: string) {
 
 export async function login(username: string, password: string) {
   const result = await pool.query<UserRow>(
-    "SELECT id, username, password_hash FROM users WHERE username = $1",
+    "SELECT id, username, password_hash, about_me, custom_behavior FROM users WHERE username = $1",
     [normalizeUsername(username)],
   );
   const user = result.rows[0];
@@ -64,6 +82,8 @@ export async function updateAccount(
   currentPassword: string,
   username: string,
   newPassword?: string,
+  aboutMe = "",
+  customBehavior = "",
 ) {
   const result = await pool.query<UserRow>(
     "SELECT id, username, password_hash FROM users WHERE id = $1",
@@ -73,13 +93,16 @@ export async function updateAccount(
   if (!user || !verifyPassword(currentPassword, user.password_hash))
     return null;
 
-  const updated = await pool.query<{ id: number; username: string }>(
-    `UPDATE users SET username = $1, password_hash = COALESCE($2, password_hash)
-     WHERE id = $3 RETURNING id, username`,
+  const updated = await pool.query<UserRow>(
+    `UPDATE users SET username = $1, password_hash = COALESCE($2, password_hash),
+       about_me = $4, custom_behavior = $5
+     WHERE id = $3 RETURNING id, username, about_me, custom_behavior`,
     [
       username.trim().toLowerCase(),
       newPassword ? hashPassword(newPassword) : null,
       userId,
+      aboutMe.trim(),
+      customBehavior.trim(),
     ],
   );
   return publicUser(updated.rows[0]!);
@@ -97,7 +120,7 @@ export async function createSession(userId: number) {
 export async function getUserBySession(token: string | undefined) {
   if (!token) return null;
   const result = await pool.query<SessionRow>(
-    `SELECT users.id, users.username FROM sessions
+    `SELECT users.id, users.username, users.about_me, users.custom_behavior FROM sessions
 		 JOIN users ON users.id = sessions.user_id
 		 WHERE sessions.session_token = $1 AND sessions.expires_at > CURRENT_TIMESTAMP`,
     [token],
