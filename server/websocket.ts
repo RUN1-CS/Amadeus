@@ -55,7 +55,9 @@ async function sendMessage(
   );
   let assistantContent = "";
 
-  const response = await chatWithTools(request);
+  const response = await chatWithTools(request, (chunk) => {
+    ws.send(JSON.stringify({ type: "message", message: chunk }));
+  });
   assistantContent = response.message.content ?? "";
   ws.send(JSON.stringify({ type: "message", message: response.message }));
 

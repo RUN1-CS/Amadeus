@@ -200,6 +200,7 @@ export async function buildChatRequest(
     messages: fitMessages(history, systemPrompt, prompt, contextWindow),
     tools,
     think: data.thinking ?? false,
+    stream: data.stream ?? false,
     contextWindow,
   };
 }
@@ -221,9 +222,43 @@ function containsRequestedInformation(
 
 export async function chatWithTools(
   request: BuiltChatRequest,
+  onChunk?: (chunk: { content?: string; thinking?: string }) => void,
 ): Promise<ChatResponse> {
   let messages = [...request.messages];
   const toolOptions = request.tools?.length ? { tools: request.tools } : {};
+
+  if (request.stream && !request.tools?.length && onChunk) {
+    const stream = await ollama.chat({
+      model: request.model,
+      messages,
+      think: request.think,
+      stream: true,
+      options: { num_ctx: request.contextWindow },
+    });
+    let content = "";
+    let thinking = "";
+    let finalChunk: ChatResponse | undefined;
+
+    for await (const chunk of stream) {
+      finalChunk = chunk;
+      const nextContent = chunk.message.content ?? "";
+      const nextThinking = chunk.message.thinking ?? "";
+      content += nextContent;
+      thinking += nextThinking;
+      if (nextContent || nextThinking) {
+        onChunk({ content: nextContent, thinking: nextThinking });
+      }
+    }
+
+    if (!finalChunk) {
+      throw new Error("Ollama returned an empty response.");
+    }
+    return {
+      ...finalChunk,
+      message: { ...finalChunk.message, content, thinking },
+    };
+  }
+
   let response = await ollama.chat({
     model: request.model,
     messages,
