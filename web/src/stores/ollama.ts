@@ -1,3 +1,4 @@
+// Pinia store for auth, chat state, socket streaming, and model selection.
 import { ref } from "vue";
 import { defineStore } from "pinia";
 
@@ -54,12 +55,14 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   let socket: WebSocket | null = null;
 
+  // Save the auth token and user object after a successful login or signup.
   function storeSession(sessionToken: string, sessionUser: User) {
     token.value = sessionToken;
     user.value = sessionUser;
     localStorage.setItem("amadeus_token", sessionToken);
   }
 
+  // Open the WebSocket and authenticate it when the browser has a valid token.
   function connectSocket() {
     if (!token.value || socket) return;
     socket = new WebSocket(`ws://${window.location.hostname}:8080`);
@@ -74,6 +77,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     });
   }
 
+  // Restore the active session during app startup and load the user's chats.
   async function initializeAuth() {
     if (!token.value || user.value) return;
     authLoading.value = true;
@@ -89,6 +93,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Sign the user in or create a new account from the form data.
   async function authenticate(
     path: "/api/auth/login" | "/api/auth/register",
     username: string,
@@ -112,14 +117,17 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Convenience wrapper for the login route.
   function loginUser(username: string, password: string) {
     return authenticate("/api/auth/login", username, password);
   }
 
+  // Convenience wrapper for the registration route.
   function registerUser(username: string, password: string) {
     return authenticate("/api/auth/register", username, password);
   }
 
+  // Update the profile and preferences from the settings screen.
   async function updateAccount(
     username: string,
     currentPassword: string,
@@ -140,6 +148,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     user.value = response.user;
   }
 
+  // Clear the in-memory session and close the socket when the user signs out.
   function logout() {
     socket?.close();
     socket = null;
@@ -151,6 +160,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     localStorage.removeItem("amadeus_token");
   }
 
+  // Load the user's saved conversations and select the first one if present.
   async function loadChats() {
     const response = await api.request<{ chats: Chat[] }>("/api/chats");
     chats.value = response.chats;
@@ -162,6 +172,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Create a new blank conversation and make it the active one.
   async function createNewChat() {
     const response = await api.request<{ chatId: number }>("/api/chats", {
       method: "POST",
@@ -177,6 +188,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     messageList.value = [];
   }
 
+  // Remove the selected conversation and move to a new one if this one was active.
   async function deleteChat(chatId: number) {
     await api.request<{ deleted: boolean }>(`/api/chats/${chatId}`, {
       method: "DELETE",
@@ -189,6 +201,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Rename an existing chat and refresh the sidebar title.
   async function renameChat(chatId: number, title: string) {
     const response = await api.request<{ chat: Chat }>(`/api/chats/${chatId}`, {
       method: "PATCH",
@@ -197,11 +210,13 @@ export const useOllamaStore = defineStore("ollama", () => {
     chats.value = chats.value.map((chat) => (chat.id === chatId ? response.chat : chat));
   }
 
+  // Persist the sidebar state and reflect it in the UI.
   function setSidebarVisible(visible: boolean) {
     sidebarVisible.value = visible;
     localStorage.setItem("amadeus_sidebar", visible ? "visible" : "hidden");
   }
 
+  // Fetch the message history for a chat and render it in the main window.
   async function selectChat(chatId: number) {
     const response = await api.request<{ messages: SavedMessage[] }>(
       `/api/chats/${chatId}/messages`,
@@ -219,6 +234,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     }));
   }
 
+  // Normalize the server's model list and preserve the current selection if still valid.
   function setModels(values: ModelValue[]) {
     const nextModels = values
       .map((model) => (typeof model === "string" ? model : (model.name ?? "")))
@@ -230,6 +246,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Handle socket events like model updates, streamed content, and errors.
   function receiveMessage(rawMessage: string) {
     try {
       const message = JSON.parse(rawMessage) as ServerMessage;
@@ -255,6 +272,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Append streamed assistant output to the current message or create a new one.
   function addAssistantMessage(content: string, thinkingContent = "") {
     const lastMessage = messageList.value.at(-1);
 
@@ -273,14 +291,17 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Put a preset prompt into the composer for quick reuse.
   function selectPrompt(prompt: string) {
     draft.value = prompt;
   }
 
+  // Empty the currently visible message list.
   function clearMessages() {
     messageList.value = [];
   }
 
+  // Send the current draft to the active chat over the authenticated socket.
   function sendMessage() {
     const content = draft.value.trim();
     if (

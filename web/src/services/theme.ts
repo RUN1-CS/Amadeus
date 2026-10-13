@@ -1,3 +1,4 @@
+// Theme model plus local storage helpers for custom UI colors.
 export type Theme = {
   accent: string;
   background: string;
@@ -15,6 +16,7 @@ export const defaultTheme: Theme = {
 const themeStorageKey = "amadeus_theme";
 const colorPattern = /^#[0-9a-f]{6}$/i;
 
+// Validate a stored theme object before using it on the page.
 function isTheme(value: unknown): value is Theme {
   if (!value || typeof value !== "object") return false;
   const theme = value as Partial<Theme>;
@@ -30,6 +32,7 @@ function isTheme(value: unknown): value is Theme {
   );
 }
 
+// Load the last saved theme, or fall back to the default palette.
 export function loadTheme(): Theme {
   try {
     const stored = JSON.parse(localStorage.getItem(themeStorageKey) ?? "null");
@@ -39,6 +42,7 @@ export function loadTheme(): Theme {
   }
 }
 
+// Push the selected colors onto the document root for the whole UI.
 export function applyTheme(theme: Theme) {
   const root = document.documentElement;
   root.style.setProperty("--theme-accent", theme.accent);
@@ -47,6 +51,7 @@ export function applyTheme(theme: Theme) {
   root.style.setProperty("--theme-text", theme.text);
 }
 
+// Persist the theme and apply it immediately to the current session.
 export function saveTheme(theme: Theme) {
   localStorage.setItem(themeStorageKey, JSON.stringify(theme));
   applyTheme(theme);

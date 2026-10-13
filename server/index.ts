@@ -1,3 +1,4 @@
+// Starts the Node server and opens the WebSocket after Ollama models are loaded.
 import { port } from "./config.js";
 import { loadModels } from "./ai.js";
 import { createHttpServer } from "./http.js";

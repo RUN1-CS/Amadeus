@@ -1,3 +1,4 @@
+// Front-end chat, user, and message types shared across the app.
 export type User = {
   id: number;
   username: string;

@@ -1,3 +1,4 @@
+// Connects the app to Ollama, manages memory context, and orchestrates tool-enabled chats.
 import { Ollama, type ChatResponse, type Message } from "ollama";
 
 import {
@@ -24,6 +25,7 @@ let modelLoadError: string | undefined;
 const modelContextWindows = new Map<string, number>();
 const modelToolSupport = new Map<string, boolean>();
 
+// Refresh the cached Ollama model list and keep the last load error available.
 export async function loadModels(): Promise<OllamaModels> {
   try {
     const response = await ollama.list();
@@ -36,10 +38,12 @@ export async function loadModels(): Promise<OllamaModels> {
   return cachedModels;
 }
 
+// Return the last known model list and any load failure for the client.
 export function getModels() {
   return { models: cachedModels, error: modelLoadError };
 }
 
+// Resolve the usable context window for a model without re-querying the cache.
 async function getModelContextWindow(model: string) {
   const cached = modelContextWindows.get(model);
   if (cached) return cached;
@@ -66,6 +70,7 @@ async function getModelContextWindow(model: string) {
   return contextWindow;
 }
 
+// Check whether a model advertises native tool-calling support.
 async function supportsTools(model: string) {
   const cached = modelToolSupport.get(model);
   if (cached !== undefined) return cached;
@@ -90,10 +95,12 @@ async function supportsTools(model: string) {
   }
 }
 
+// Roughly estimate token usage so prompts fit inside the model window.
 function estimateTokens(content: string) {
   return Math.ceil(content.length / 4);
 }
 
+// Create a vector embedding for a message so related memories can be recalled.
 async function embedText(text: string) {
   if (!text.trim()) return undefined;
   try {
@@ -111,10 +118,12 @@ async function embedText(text: string) {
   }
 }
 
+// Public wrapper for embedding a prompt or assistant reply.
 export async function getMessageEmbedding(text: string) {
   return embedText(text);
 }
 
+// Pull the most relevant remembered user messages into the prompt context.
 async function searchMessageMemory(userId: number, prompt: string) {
   const embedding = await embedText(prompt);
   if (!embedding) return "";
@@ -135,6 +144,7 @@ async function searchMessageMemory(userId: number, prompt: string) {
   }
 }
 
+// Trim older history to fit within the model's remaining context budget.
 function fitMessages(
   history: SavedMessage[],
   systemPrompt: string,
@@ -157,6 +167,7 @@ function fitMessages(
   return [...messages, { role: "user", content: prompt }];
 }
 
+// Assemble the final chat payload, memory prompt, and tool config for Ollama.
 export async function buildChatRequest(
   userId: number,
   userName: string,
@@ -207,6 +218,7 @@ export async function buildChatRequest(
 
 type BuiltChatRequest = Awaited<ReturnType<typeof buildChatRequest>>;
 
+// Detect whether a browser tool call produced enough evidence to answer the user directly.
 function containsRequestedInformation(
   toolName: string,
   result: { ok: boolean; text: string },
@@ -220,6 +232,7 @@ function containsRequestedInformation(
   );
 }
 
+// Run the model with optional browser tools until it either answers or stops using tools.
 export async function chatWithTools(
   request: BuiltChatRequest,
   onChunk?: (chunk: { content?: string; thinking?: string }) => void,
@@ -314,6 +327,7 @@ export async function chatWithTools(
   return response;
 }
 
+// Condense the first exchange into a short, readable conversation title.
 export async function generateChatTitle(
   model: string,
   prompt: string,

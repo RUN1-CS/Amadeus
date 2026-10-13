@@ -1,3 +1,4 @@
+// MCP adapter that exposes Playwright browser tools to the model.
 import { resolve } from "node:path";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -11,7 +12,7 @@ type ToolResult = { content?: ToolContent[]; isError?: boolean };
 export type ToolExecution = {
   ok: boolean;
   text: string;
-  };
+};
 type McpTool = {
   name: string;
   description?: string;
@@ -20,6 +21,7 @@ type McpTool = {
 
 let clientPromise: Promise<Client> | undefined;
 
+// Construct the MCP transport for the local Playwright browser process.
 function createTransport() {
   const command = process.env.PLAYWRIGHT_MCP_COMMAND;
   if (command) {
@@ -41,6 +43,7 @@ function createTransport() {
   });
 }
 
+// Reuse a single MCP client connection so browser tool calls stay fast.
 async function getClient() {
   if (!clientPromise) {
     const client = new Client({ name: "amadeus-chat", version: "1.0.0" });
@@ -49,6 +52,7 @@ async function getClient() {
   return clientPromise;
 }
 
+// Extract the plain text from a Playwright tool result while preserving errors.
 export function extractToolText(result: unknown): ToolExecution {
   const toolResult = result as ToolResult;
   const text = (toolResult.content ?? [])
@@ -59,12 +63,16 @@ export function extractToolText(result: unknown): ToolExecution {
   return { ok: !toolResult.isError && text.trim().length > 0, text };
 }
 
+// Cleaner URL handling prevents Markdown-wrapped links from breaking browser navigation.
 function normalizeUrl(value: string) {
-  const markdownMatch = value.match(/^\s*\[[^\]]+\]\((https?:\/\/[^\s)]+)\)\s*$/i);
+  const markdownMatch = value.match(
+    /^\s*\[[^\]]+\]\((https?:\/\/[^\s)]+)\)\s*$/i,
+  );
   const candidate = (markdownMatch?.[1] ?? value).trim();
   return candidate.replace(/[),.;]+$/, "");
 }
 
+// Keep browser tool arguments consistent before they are sent to the MCP server.
 function normalizeToolArguments(name: string, args: Record<string, unknown>) {
   if (name !== "browser_navigate" || typeof args.url !== "string") {
     return args;
@@ -72,6 +80,7 @@ function normalizeToolArguments(name: string, args: Record<string, unknown>) {
   return { ...args, url: normalizeUrl(args.url) };
 }
 
+// Expose the browser automation tools to Ollama as callable function definitions.
 export async function getPlaywrightTools(): Promise<Tool[]> {
   try {
     const client = await getClient();
@@ -98,6 +107,7 @@ export async function getPlaywrightTools(): Promise<Tool[]> {
   }
 }
 
+// Execute one browser tool call and return the text content in a model-friendly format.
 export async function callPlaywrightTool(
   name: string,
   args: Record<string, unknown>,

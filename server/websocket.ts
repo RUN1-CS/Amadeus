@@ -1,3 +1,4 @@
+// WebSocket gateway for authenticate, model fetches, and streaming chat messages.
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 
 import {
@@ -20,10 +21,12 @@ import type { ClientMessage } from "./protocol.js";
 
 const socketUsers = new WeakMap<WebSocket, PublicUser>();
 
+// Decode a socket payload into the frontend/client message shape.
 function parseMessage(message: RawData): ClientMessage {
   return JSON.parse(message.toString()) as ClientMessage;
 }
 
+// Handle a user prompt by building the model request, streaming the answer, and saving both sides.
 async function sendMessage(
   ws: WebSocket,
   user: PublicUser,
@@ -88,6 +91,7 @@ async function sendMessage(
   ws.send(JSON.stringify({ type: "done" }));
 }
 
+// Route socket traffic for auth, model fetches, and chat sends.
 async function handleMessage(ws: WebSocket, rawMessage: RawData) {
   try {
     const data = parseMessage(rawMessage);
@@ -117,6 +121,7 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
   }
 }
 
+// Attach the WebSocket server to the existing HTTP server and handle client connections.
 export function attachWebSocketServer(server: import("node:http").Server) {
   const wss = new WebSocketServer({ server });
   wss.on("connection", (ws) => {

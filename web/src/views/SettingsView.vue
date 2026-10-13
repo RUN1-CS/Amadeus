@@ -1,3 +1,4 @@
+<!-- Settings page for profile data, theme colors, and account updates. -->
 <script setup lang="ts">
 import { ref } from "vue";
 import { storeToRefs } from "pinia";
@@ -18,17 +19,20 @@ const saveError = ref("");
 const saved = ref(false);
 const theme = ref<Theme>(loadTheme());
 
+// Update one color slot and save it immediately for the next browser session.
 function updateTheme<K extends keyof Theme>(key: K, value: string) {
   theme.value[key] = value;
   saveTheme(theme.value);
 }
 
+// Restore the default palette and persist it to local storage.
 function resetTheme() {
   theme.value = { ...defaultTheme };
   applyTheme(theme.value);
   saveTheme(theme.value);
 }
 
+// Save profile details and password changes after the current password is validated.
 async function saveAccount() {
   saveError.value = "";
   saved.value = false;

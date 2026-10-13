@@ -1,3 +1,4 @@
+// Postgres access layer for users, chat sessions, messages, and vector-memory lookups.
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { Pool } from "pg";
@@ -31,6 +32,7 @@ type UserRow = {
 };
 type SessionRow = UserRow;
 
+// Strip sensitive fields down to the public user shape returned to the client.
 function publicUser(
   user: Pick<UserRow, "id" | "username"> & Partial<UserRow>,
 ): PublicUser {
@@ -42,6 +44,7 @@ function publicUser(
   };
 }
 
+// Hash a password with a random salt before storing it in Postgres.
 function hashPassword(
   password: string,
   salt = randomBytes(16).toString("hex"),
@@ -49,6 +52,7 @@ function hashPassword(
   return `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
 }
 
+// Check whether a password matches the stored hash without leaking timing data.
 function verifyPassword(password: string, storedHash: string) {
   const [salt, expectedHex] = storedHash.split(":");
   if (!salt || !expectedHex) return false;
@@ -57,10 +61,12 @@ function verifyPassword(password: string, storedHash: string) {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+// Normalize user names so sign-in and account updates behave consistently.
 function normalizeUsername(username: string) {
   return username.trim().toLowerCase();
 }
 
+// Create a new user account and return the public profile.
 export async function register(username: string, password: string) {
   const result = await pool.query<{ id: number; username: string }>(
     "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username",
@@ -69,6 +75,7 @@ export async function register(username: string, password: string) {
   return publicUser(result.rows[0]!);
 }
 
+// Look up a user by name and validate the supplied password.
 export async function login(username: string, password: string) {
   const result = await pool.query<UserRow>(
     "SELECT id, username, password_hash, about_me, custom_behavior FROM users WHERE username = $1",
@@ -80,6 +87,7 @@ export async function login(username: string, password: string) {
     : null;
 }
 
+// Update profile fields and optionally replace the password after verifying the current one.
 export async function updateAccount(
   userId: number,
   currentPassword: string,
@@ -111,6 +119,7 @@ export async function updateAccount(
   return publicUser(updated.rows[0]!);
 }
 
+// Create a login token that can be used to authorize future requests.
 export async function createSession(userId: number) {
   const token = randomBytes(32).toString("hex");
   await pool.query(
@@ -120,6 +129,7 @@ export async function createSession(userId: number) {
   return token;
 }
 
+// Resolve the active user from a bearer token if the session is still valid.
 export async function getUserBySession(token: string | undefined) {
   if (!token) return null;
   const result = await pool.query<SessionRow>(
@@ -131,6 +141,7 @@ export async function getUserBySession(token: string | undefined) {
   return result.rows[0] ? publicUser(result.rows[0]) : null;
 }
 
+// Return the user's recent conversations sorted newest-first.
 export async function listChats(userId: number): Promise<Chat[]> {
   const result = await pool.query<Chat>(
     `SELECT id, title, created_at AS "createdAt" FROM chats
@@ -140,6 +151,7 @@ export async function listChats(userId: number): Promise<Chat[]> {
   return result.rows;
 }
 
+// Create a new conversation row for the authenticated user.
 export async function createChat(userId: number, title = "New conversation") {
   const result = await pool.query<{ id: number }>(
     "INSERT INTO chats (user_id, title) VALUES ($1, $2) RETURNING id",
@@ -148,6 +160,7 @@ export async function createChat(userId: number, title = "New conversation") {
   return result.rows[0]!.id;
 }
 
+// Remove a conversation only if it belongs to the requesting user.
 export async function deleteChat(userId: number, chatId: number) {
   const result = await pool.query(
     "DELETE FROM chats WHERE id = $1 AND user_id = $2",
@@ -156,6 +169,7 @@ export async function deleteChat(userId: number, chatId: number) {
   return result.rowCount === 1;
 }
 
+// Rename a chat and return the updated row if ownership checks pass.
 export async function renameChat(
   userId: number,
   chatId: number,
@@ -173,6 +187,7 @@ export async function renameChat(
   return result.rows[0] ?? null;
 }
 
+// Confirm that the chat belongs to the user before mutating or reading it.
 export async function ownsChat(userId: number, chatId: number) {
   const result = await pool.query(
     "SELECT 1 FROM chats WHERE id = $1 AND user_id = $2",
@@ -181,6 +196,7 @@ export async function ownsChat(userId: number, chatId: number) {
   return result.rowCount === 1;
 }
 
+// Fetch the stored message history for a valid user/chat pair.
 export async function getChatMessages(
   userId: number,
   chatId: number,
@@ -205,6 +221,7 @@ export async function getChatMessages(
   }));
 }
 
+// Save one user or assistant message and optionally store its embedding for retrieval.
 export async function saveMessage(
   userId: number,
   chatId: number,
@@ -236,6 +253,7 @@ export async function saveMessage(
   return true;
 }
 
+// Find memories closest to the current prompt to give the model useful context.
 export async function searchSimilarMessages(
   userId: number,
   embedding: number[],

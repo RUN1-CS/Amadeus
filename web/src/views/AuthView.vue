@@ -1,3 +1,4 @@
+<!-- Login and registration screen that authenticates users and switches modes. -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -13,6 +14,7 @@ const username = ref("");
 const password = ref("");
 const isRegister = computed(() => route.path === "/register");
 
+// Sign the user in or create an account and then send them to the main chat.
 async function submit() {
   try {
     if (isRegister.value) await store.registerUser(username.value, password.value);

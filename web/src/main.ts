@@ -1,3 +1,4 @@
+// Vue bootstrap file that creates the app, store, and router.
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 

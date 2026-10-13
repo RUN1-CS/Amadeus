@@ -1,3 +1,4 @@
+// Central environment settings for the server's ports, model defaults, and context budget.
 export const port = Number(process.env.PORT ?? 8080);
 export const ollamaBaseUrl =
   process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434";

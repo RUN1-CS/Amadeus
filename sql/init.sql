@@ -1,4 +1,4 @@
--- Extensions
+-- Creates the Postgres schema for users, chats, messages, sessions, and vector memory.
 
 CREATE EXTENSION IF NOT EXISTS vector;
 

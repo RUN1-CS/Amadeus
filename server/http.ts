@@ -1,3 +1,4 @@
+// REST API for auth, chat CRUD, and message history.
 import {
   createServer,
   type IncomingMessage,
@@ -18,6 +19,7 @@ import {
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
 
+// Write a JSON response with the CORS headers used by the browser client.
 function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -28,12 +30,14 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.end(JSON.stringify(body));
 }
 
+// Read the request body once and parse it as JSON for the route handlers.
 async function readJson(request: IncomingMessage) {
   let body = "";
   for await (const chunk of request) body += chunk;
   return body ? (JSON.parse(body) as Record<string, unknown>) : {};
 }
 
+// Require a valid bearer token before allowing protected API routes.
 async function requireUser(request: IncomingMessage, response: ServerResponse) {
   const authorization = request.headers.authorization;
   const token = authorization?.startsWith("Bearer ")
@@ -44,6 +48,9 @@ async function requireUser(request: IncomingMessage, response: ServerResponse) {
   return user;
 }
 
+// Route each HTTP request to the right auth, account, chat, or message handler.
+// It validates the method/path, enforces auth for protected endpoints, and sends
+// JSON responses for both success and error cases.
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -60,6 +67,7 @@ async function handleRequest(
   const path = url.pathname;
 
   try {
+    // Register a new account with a username and password.
     if (request.method === "POST" && path === "/api/auth/register") {
       const body = await readJson(request);
       const username = typeof body.username === "string" ? body.username : "";
@@ -75,6 +83,7 @@ async function handleRequest(
       return;
     }
 
+    // Log in an existing user and issue a fresh session token.
     if (request.method === "POST" && path === "/api/auth/login") {
       const body = await readJson(request);
       const user = await login(
@@ -89,12 +98,14 @@ async function handleRequest(
       return;
     }
 
+    // Return the logged-in user's public profile for the app shell.
     if (request.method === "GET" && path === "/api/auth/me") {
       const user = await requireUser(request, response);
       if (user) sendJson(response, 200, { user });
       return;
     }
 
+    // Update account fields, including optional password changes, after verifying the current password.
     if (request.method === "PATCH" && path === "/api/auth/account") {
       const user = await requireUser(request, response);
       if (!user) return;
@@ -135,14 +146,17 @@ async function handleRequest(
       return;
     }
 
+    // From here, every route requires a valid login session.
     const user = await requireUser(request, response);
     if (!user) return;
 
+    // Fetch all chats owned by the signed-in user.
     if (path === "/api/chats" && request.method === "GET") {
       sendJson(response, 200, { chats: await listChats(user.id) });
       return;
     }
 
+    // Create a new conversation for the authenticated user.
     if (path === "/api/chats" && request.method === "POST") {
       const body = await readJson(request);
       const chatId = await createChat(
@@ -153,6 +167,7 @@ async function handleRequest(
       return;
     }
 
+    // Rename an existing chat, if it belongs to this user.
     const chatMatch = path.match(/^\/api\/chats\/(\d+)$/);
     if (chatMatch && request.method === "PATCH") {
       const body = await readJson(request);
@@ -170,6 +185,7 @@ async function handleRequest(
       return;
     }
 
+    // Delete a chat only when ownership matches the signed-in user.
     if (chatMatch && request.method === "DELETE") {
       const deleted = await deleteChat(user.id, Number(chatMatch[1]));
       if (!deleted) {
@@ -180,6 +196,7 @@ async function handleRequest(
       return;
     }
 
+    // Load the saved messages for one conversation.
     const messagesMatch = path.match(/^\/api\/chats\/(\d+)\/messages$/);
     if (messagesMatch && request.method === "GET") {
       const messages = await getChatMessages(user.id, Number(messagesMatch[1]));
@@ -191,6 +208,7 @@ async function handleRequest(
       return;
     }
 
+    // Fall through to a 404 when the route does not match any known API endpoint.
     sendJson(response, 404, { error: "Not found." });
   } catch (error) {
     if ((error as { code?: string }).code === "23505") {
@@ -201,6 +219,7 @@ async function handleRequest(
   }
 }
 
+// Start the HTTP server with the route dispatcher attached.
 export function createHttpServer() {
   return createServer((request, response) => {
     void handleRequest(request, response);

@@ -1,3 +1,4 @@
+<!-- Main chat shell: sidebar, composer, message rendering, and route-aware auth checks. -->
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, watchEffect } from "vue";
 import { storeToRefs } from "pinia";
@@ -47,38 +48,45 @@ const deleteChatId = ref<number | null>(null);
 const deleteChatName = ref("");
 const deleteConfirmation = ref("");
 
+// Open the rename editor for a sidebar chat and preload the current title.
 function openRename(chat: { id: number; title: string }) {
   renameChatId.value = chat.id;
   renameValue.value = chat.title;
 }
 
+// Save the edited chat title and close the rename UI.
 async function submitRename() {
   if (!renameChatId.value || !renameValue.value.trim()) return;
   await renameChat(renameChatId.value, renameValue.value);
   renameChatId.value = null;
 }
 
+// Prepare the delete flow with the conversation name for confirmation.
 function openDelete(chat: { id: number; title: string }) {
   deleteChatId.value = chat.id;
   deleteChatName.value = chat.title;
   deleteConfirmation.value = "";
 }
 
+// Delete a chat only after the user types the exact title.
 async function confirmDelete() {
   if (!deleteChatId.value || deleteConfirmation.value !== deleteChatName.value) return;
   await deleteChat(deleteChatId.value);
   deleteChatId.value = null;
 }
 
+// Detect whether the user is already viewing the newest chat messages.
 function isAtChatBottom() {
   const element = chatScroll.value;
   return element ? element.scrollHeight - element.scrollTop - element.clientHeight <= 24 : true;
 }
 
+// Keep auto-scroll enabled only when the user is near the current bottom.
 function handleChatScroll() {
   shouldFollowLatest.value = isAtChatBottom();
 }
 
+// Jump the chat view to the most recent message when the user is following the stream.
 async function scrollToLatest() {
   await nextTick();
   if (chatScroll.value) {
@@ -110,6 +118,7 @@ watchEffect(() => {
   }
 });
 
+// Submit a message on Enter while allowing Shift+Enter for multiline input.
 function handleComposerKeydown(event: KeyboardEvent) {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
@@ -117,6 +126,7 @@ function handleComposerKeydown(event: KeyboardEvent) {
   }
 }
 
+// Convert Markdown into sanitized HTML before it is rendered in the chat.
 function renderMarkdown(content: string) {
   return DOMPurify.sanitize(marked.parse(content, { async: false }));
 }
