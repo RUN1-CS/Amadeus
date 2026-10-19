@@ -251,7 +251,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         socket?.send(JSON.stringify({ type: "fetch_models" }));
       } else if (message.type === "message") {
         const content = message.message.content ?? "";
-        addAssistantMessage(content, message.message.thinking ?? "");
+        addAssistantMessage(content, message.message.thinking ?? "", message.full ?? false);
       } else if (message.type === "chat_title") {
         chats.value = chats.value.map((chat) =>
           chat.id === message.chat.id ? message.chat : chat,
@@ -268,12 +268,17 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   // Append streamed assistant output to the current message or create a new one.
-  function addAssistantMessage(content: string, thinkingContent = "") {
+  function addAssistantMessage(content: string, thinkingContent = "", isFull = false) {
     const lastMessage = messageList.value.at(-1);
 
     if (lastMessage?.role === "assistant" && isGenerating.value) {
       lastMessage.content += content;
       lastMessage.thinking = (lastMessage.thinking ?? "") + thinkingContent;
+
+      if (isFull) {
+        lastMessage.content = content;
+        lastMessage.thinking = thinkingContent;
+      }
     } else {
       messageList.value.push({
         id: Date.now(),

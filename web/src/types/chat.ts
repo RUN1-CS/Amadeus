@@ -46,6 +46,7 @@ export type AssistantMessage = {
     content?: string;
     thinking?: string;
   };
+  full?: boolean;
 };
 
 export type ErrorMessage = {

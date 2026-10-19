@@ -62,7 +62,9 @@ async function sendMessage(
     ws.send(JSON.stringify({ type: "message", message: chunk }));
   });
   assistantContent = response.message.content ?? "";
-  ws.send(JSON.stringify({ type: "message", message: response.message }));
+  ws.send(
+    JSON.stringify({ type: "message", message: response.message, full: true }),
+  );
 
   await saveMessage(
     user.id,
