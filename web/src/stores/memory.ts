@@ -1,22 +1,9 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-export interface Memory {
-  id: number;
-  user_id: number;
-  content: string;
-  source: string;
-  metadata: Record<string, unknown>;
-  embedding?: number[] | null;
-  created_at: string;
-  updated_at: string;
-}
+import type { Memory, MemoryPayload } from "@/types/chat";
 
-export interface MemoryPayload {
-  content: string;
-  source: string;
-  metadata?: Record<string, unknown>;
-}
+const token = localStorage.getItem("amadeus_token");
 
 export const useMemoryStore = defineStore("memory", () => {
   const memories = ref<Memory[]>([]);
@@ -27,11 +14,20 @@ export const useMemoryStore = defineStore("memory", () => {
   async function fetchMemories() {
     loading.value = true;
     error.value = null;
+    if (!token) {
+      error.value = "User is not authenticated.";
+      loading.value = false;
+      return;
+    }
     try {
       const response = await fetch("/api/memories", {
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (!response.ok) throw new Error("Failed to fetch memories.");
+      console.log("Fetched memories:", await response.clone());
       memories.value = await response.json();
     } catch (err) {
       error.value = err instanceof Error ? err.message : "An error occurred.";
@@ -47,7 +43,10 @@ export const useMemoryStore = defineStore("memory", () => {
     try {
       const response = await fetch("/api/memories", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Failed to create memory.");
@@ -69,7 +68,10 @@ export const useMemoryStore = defineStore("memory", () => {
     try {
       const response = await fetch(`/api/memories/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Failed to update memory.");
@@ -92,6 +94,9 @@ export const useMemoryStore = defineStore("memory", () => {
     try {
       const response = await fetch(`/api/memories/${id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (!response.ok) throw new Error("Failed to delete memory.");
       memories.value = memories.value.filter((m) => m.id !== id);

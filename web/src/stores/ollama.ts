@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { defineStore } from "pinia";
 
-import { createApiClient } from "../services/api";
+import { createApiClient } from "@/services/api";
 import type {
   Chat,
   ChatMessage,

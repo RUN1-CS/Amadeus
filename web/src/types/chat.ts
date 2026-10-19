@@ -70,3 +70,20 @@ export type ServerMessage =
   | ChatTitleMessage
   | { type: "authenticated"; user: User }
   | { type: "done" };
+
+export interface Memory {
+  id: number;
+  user_id: number;
+  content: string;
+  source: string;
+  metadata: Record<string, unknown>;
+  embedding?: number[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryPayload {
+  content: string;
+  source: string;
+  metadata?: Record<string, unknown>;
+}

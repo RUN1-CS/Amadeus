@@ -3,7 +3,8 @@
 import { ref, computed, onMounted } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
-import { useMemoryStore, type Memory } from "../stores/memory";
+import { useMemoryStore } from "@/stores/memory";
+import type { Memory } from "@/types/chat";
 
 const router = useRouter();
 const memoryStore = useMemoryStore();

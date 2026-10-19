@@ -17,6 +17,10 @@ import {
   register,
   renameChat,
   updateAccount,
+  updateMemory,
+  deleteMemory,
+  getMemoriesByUserId,
+  createMemory,
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
 
@@ -250,6 +254,70 @@ async function handleRequest(
       const deleted = await deleteChat(user.id, Number(chatMatch[1]));
       if (!deleted) {
         sendJson(response, 404, { error: "Chat not found." });
+        return;
+      }
+      sendJson(response, 200, { deleted: true });
+      return;
+    }
+
+    // List all memories for the signed-in user.
+    if (path === "/api/memories" && request.method === "GET") {
+      sendJson(response, 200, { memories: await getMemoriesByUserId(user.id) });
+      return;
+    }
+
+    // Create a memory.
+    if (path === "/api/memories" && request.method === "POST") {
+      const body = await readJson(request);
+      const content =
+        typeof body.content === "string" ? body.content.trim() : "";
+      if (!content) {
+        sendJson(response, 400, { error: "Memory content cannot be empty." });
+        return;
+      }
+      const memory = await createMemory({
+        userId: user.id,
+        content,
+        source:
+          typeof body.source === "string" && body.source
+            ? body.source
+            : "manual",
+        metadata:
+          body.metadata && typeof body.metadata === "object"
+            ? (body.metadata as Record<string, unknown>)
+            : {},
+      });
+      sendJson(response, 201, { memory });
+      return;
+    }
+
+    const memoryMatch = path.match(/^\/api\/memories\/(\d+)$/);
+
+    // Update a memory the user owns.
+    if (memoryMatch && request.method === "PATCH") {
+      const body = await readJson(request);
+      const memory = await updateMemory(Number(memoryMatch[1]), user.id, {
+        content:
+          typeof body.content === "string" ? body.content.trim() : undefined,
+        source: typeof body.source === "string" ? body.source : undefined,
+        metadata:
+          body.metadata && typeof body.metadata === "object"
+            ? (body.metadata as Record<string, unknown>)
+            : undefined,
+      });
+      if (!memory) {
+        sendJson(response, 404, { error: "Memory not found." });
+        return;
+      }
+      sendJson(response, 200, { memory });
+      return;
+    }
+
+    // Delete a memory the user owns.
+    if (memoryMatch && request.method === "DELETE") {
+      const deleted = await deleteMemory(Number(memoryMatch[1]), user.id);
+      if (!deleted) {
+        sendJson(response, 404, { error: "Memory not found." });
         return;
       }
       sendJson(response, 200, { deleted: true });

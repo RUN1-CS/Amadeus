@@ -5,7 +5,7 @@ import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 
 import { useOllamaStore } from "../stores/ollama";
-import { applyTheme, defaultTheme, loadTheme, saveTheme, type Theme } from "../services/theme";
+import { applyTheme, defaultTheme, loadTheme, saveTheme, type Theme } from "@/services/theme";
 
 const router = useRouter();
 const store = useOllamaStore();
