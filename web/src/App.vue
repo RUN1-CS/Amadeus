@@ -153,39 +153,33 @@ function toggleHideAttachment(file: File | { name: string; url?: string; lastMod
   hiddenAttachments.value[key] = !hiddenAttachments.value[key];
 }
 
+// Store loaded file contents by key
+const loadedContents = ref<Record<string, string>>({});
+
 // Get file content from URL
 async function fetchFileContent(url: string): Promise<string> {
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${ollamaStore.token}` },
+  });
   if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
   return await response.text();
 }
 
-// Store loaded file contents by key
-const loadedContents = ref<Record<string, string>>({});
-
+// Load file content if not already cached, and store it in loadedContents.
 async function loadFileContentIfNeeded(file: {
   name: string;
   url?: string;
   lastModified?: number;
 }) {
   const key = getFileKey(file);
-  // Return cached version if already fetched
-  if (attachmentContents.value[key]) return attachmentContents.value[key];
-  if (loadedContents.value[key]) return loadedContents.value[key];
-
-  // Fetch remote content asynchronously if URL exists
-  if (file.url) {
-    try {
-      const content = await fetchFileContent(file.url);
-      loadedContents.value[key] = content;
-      return content;
-    } catch (err) {
-      console.error("Failed to fetch file content:", err);
-      return "Failed to load content";
-    }
+  if (attachmentContents.value[key] || loadedContents.value[key] !== undefined) return;
+  if (!file.url) return;
+  try {
+    loadedContents.value[key] = await fetchFileContent(file.url);
+  } catch (err) {
+    console.error("Failed to fetch file content:", err);
+    loadedContents.value[key] = "Failed to load content";
   }
-
-  return "";
 }
 
 // Clean display content getter with no side-effects
@@ -200,11 +194,6 @@ function getDisplayContent(file: {
   if ("content" in file && file.content) return file.content;
   if (attachmentContents.value[key]) return attachmentContents.value[key];
   if (loadedContents.value[key]) return loadedContents.value[key];
-
-  // Trigger async fetch if url is available but content not yet cached
-  if (file.url) {
-    void loadFileContentIfNeeded(file);
-  }
 
   return "";
 }
@@ -294,8 +283,8 @@ async function submitMessage() {
 }
 
 // Convert Markdown into sanitized HTML before it is rendered in the chat.
-function renderMarkdown(content: string) {
-  return DOMPurify.sanitize(marked.parse(content, { async: false }));
+function renderMarkdown(content: string | null | undefined) {
+  return DOMPurify.sanitize(marked.parse(content ?? "", { async: false }));
 }
 </script>
 <template>

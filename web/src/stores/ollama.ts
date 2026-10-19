@@ -12,6 +12,8 @@ import type {
   ServerMessage,
 } from "../types/chat";
 
+const FILE_BLOCK = /(?:^|\n\n)File: ([^\n]+)\n```\n([\s\S]*?)\n```(?=\n\nFile: |$)/g;
+
 export const useOllamaStore = defineStore("ollama", () => {
   const user = ref<User | null>(null);
   const token = ref(localStorage.getItem("amadeus_token"));
@@ -62,6 +64,11 @@ export const useOllamaStore = defineStore("ollama", () => {
       const response = await api.request<{ user: User }>("/api/auth/me");
       user.value = response.user;
       connectSocket();
+      try {
+        await loadChats();
+      } catch (error) {
+        console.error("Failed to load chats", error);
+      }
       await loadChats();
     } catch {
       logout();
@@ -199,17 +206,27 @@ export const useOllamaStore = defineStore("ollama", () => {
       `/api/chats/${chatId}/messages`,
     );
     activeChatId.value = chatId;
-    messageList.value = response.messages.map((message) => ({
-      id: message.id,
-      role: message.role,
-      content: message.content,
-      model: message.model,
-      time: new Date(message.createdAt).toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-      }),
-      attachments: message.attachments,
-    }));
+    messageList.value = response.messages.map((message) => {
+      const raw = message.content ?? "";
+      const parsed = message.role === "user" ? splitSavedContent(raw) : null;
+      const saved = message.attachments ?? [];
+      const extracted = (parsed?.files ?? []).map((file) => ({
+        ...saved.find((s) => s.name === file.name),
+        ...file,
+      }));
+
+      return {
+        id: message.id,
+        role: message.role,
+        content: parsed ? parsed.text : raw,
+        model: message.model,
+        time: new Date(message.createdAt).toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        }),
+        attachments: extracted.length ? extracted : saved,
+      };
+    });
   }
 
   // Normalize the server's model list and preserve the current selection if still valid.
@@ -327,6 +344,17 @@ export const useOllamaStore = defineStore("ollama", () => {
     );
 
     return true;
+  }
+
+  function splitSavedContent(raw: string) {
+    const files: { name: string; content: string }[] = [];
+    const text = raw
+      .replace(FILE_BLOCK, (_match, name: string, content: string) => {
+        files.push({ name, content });
+        return "";
+      })
+      .trim();
+    return { text, files };
   }
 
   // Upload text document files to the server for model ingestion.
