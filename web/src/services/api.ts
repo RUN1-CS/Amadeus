@@ -7,7 +7,9 @@ export function createApiClient(getToken: () => string | null) {
     // Send a request to the backend and throw on any non-2xx response.
     async request<T>(path: string, options: RequestInit = {}): Promise<T> {
       const headers = new Headers(options.headers);
-      headers.set("Content-Type", "application/json");
+      if (!(options.body instanceof FormData)) {
+        headers.set("Content-Type", "application/json");
+      }
       const token = getToken();
       if (token) headers.set("Authorization", `Bearer ${token}`);
 

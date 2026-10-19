@@ -7,7 +7,8 @@ import {
   ollamaBaseUrl,
   reservedOutputTokens,
 } from "./config.js";
-import { searchSimilarMessages, type SavedMessage } from "./db.js";
+import { searchSimilarMessages } from "./db.js";
+import { SavedMessage } from "./types.js";
 import { getErrorMessage } from "./errors.js";
 import type { ClientMessage } from "./protocol.js";
 import { callPlaywrightTool, getPlaywrightTools } from "./playwright.js";

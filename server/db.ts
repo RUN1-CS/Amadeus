@@ -3,34 +3,19 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { Pool } from "pg";
 
+import type {
+  MemoryRow,
+  CreateMemoryParams,
+  UpdateMemoryParams,
+  PublicUser,
+  Chat,
+  SavedMessage,
+  SimilarMessage,
+  UserRow,
+  SessionRow,
+} from "./types.js";
+
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-export type PublicUser = {
-  id: number;
-  username: string;
-  aboutMe: string;
-  customBehavior: string;
-};
-export type Chat = { id: number; title: string; createdAt: string };
-export type SavedMessage = {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  model?: string;
-  createdAt: string;
-};
-export type SimilarMessage = Pick<SavedMessage, "role" | "content"> & {
-  similarity: number;
-};
-
-type UserRow = {
-  id: number;
-  username: string;
-  password_hash: string;
-  about_me?: string;
-  custom_behavior?: string;
-};
-type SessionRow = UserRow;
 
 // Strip sensitive fields down to the public user shape returned to the client.
 function publicUser(
@@ -279,4 +264,133 @@ export async function searchSimilarMessages(
     content: message.content,
     similarity: message.similarity,
   }));
+}
+
+// Fetch all memories for a specific user, ordered newest first.
+export async function getMemoriesByUserId(
+  userId: number,
+): Promise<MemoryRow[]> {
+  const text = `
+    SELECT id, user_id, content, source, metadata, created_at, updated_at
+    FROM memories
+    WHERE user_id = $1
+    ORDER BY created_at DESC;
+  `;
+  const { rows } = await pool.query<MemoryRow>(text, [userId]);
+  return rows;
+}
+
+// Fetch a single memory by ID and user ID.
+export async function getMemoryById(
+  id: number,
+  userId: number,
+): Promise<MemoryRow | null> {
+  const text = `
+    SELECT id, user_id, content, source, metadata, created_at, updated_at
+    FROM memories
+    WHERE id = $1 AND user_id = $2;
+  `;
+  const { rows } = await pool.query<MemoryRow>(text, [id, userId]);
+  return rows[0] || null;
+}
+
+// Insert a new memory record.
+export async function createMemory(
+  params: CreateMemoryParams,
+): Promise<MemoryRow> {
+  const { userId, content, source, metadata = {}, embedding = null } = params;
+  const text = `
+    INSERT INTO memories (user_id, content, source, metadata, embedding)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, user_id, content, source, metadata, created_at, updated_at;
+  `;
+  const { rows } = await pool.query<MemoryRow>(text, [
+    userId,
+    content,
+    source,
+    JSON.stringify(metadata),
+    embedding ? JSON.stringify(embedding) : null,
+  ]);
+  return rows[0];
+}
+
+// Dynamically update a memory record.
+export async function updateMemory(
+  id: number,
+  userId: number,
+  params: UpdateMemoryParams,
+): Promise<MemoryRow | null> {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  let idx = 1;
+
+  if (params.content !== undefined) {
+    fields.push(`content = $${idx++}`);
+    values.push(params.content);
+  }
+  if (params.source !== undefined) {
+    fields.push(`source = $${idx++}`);
+    values.push(params.source);
+  }
+  if (params.metadata !== undefined) {
+    fields.push(`metadata = $${idx++}`);
+    values.push(JSON.stringify(params.metadata));
+  }
+  if (params.embedding !== undefined) {
+    fields.push(`embedding = $${idx++}`);
+    values.push(params.embedding ? JSON.stringify(params.embedding) : null);
+  }
+
+  if (fields.length === 0) {
+    return getMemoryById(id, userId);
+  }
+
+  fields.push(`updated_at = NOW()`);
+  values.push(id, userId);
+
+  const text = `
+    UPDATE memories
+    SET ${fields.join(", ")}
+    WHERE id = $${idx++} AND user_id = $${idx++}
+    RETURNING id, user_id, content, source, metadata, created_at, updated_at;
+  `;
+
+  const { rows } = await pool.query<MemoryRow>(text, values);
+  return rows[0] || null;
+}
+
+// Delete a memory record by ID and user ID.
+export async function deleteMemory(
+  id: number,
+  userId: number,
+): Promise<boolean> {
+  const text = `
+    DELETE FROM memories
+    WHERE id = $1 AND user_id = $2
+    RETURNING id;
+  `;
+  const { rowCount } = await pool.query(text, [id, userId]);
+  return (rowCount ?? 0) > 0;
+}
+
+// Vector similarity search using pgvector cosine distance (<-> operator).
+export async function searchMemoriesByEmbedding(
+  userId: number,
+  queryVector: number[],
+  limit = 5,
+): Promise<MemoryRow[]> {
+  const text = `
+    SELECT id, user_id, content, source, metadata, created_at, updated_at,
+           1 - (embedding <=> $1) AS similarity
+    FROM memories
+    WHERE user_id = $2 AND embedding IS NOT NULL
+    ORDER BY embedding <=> $1 ASC
+    LIMIT $3;
+  `;
+  const { rows } = await pool.query<MemoryRow>(text, [
+    JSON.stringify(queryVector),
+    userId,
+    limit,
+  ]);
+  return rows;
 }

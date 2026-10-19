@@ -6,18 +6,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import type { Tool } from "ollama";
 
 import { getErrorMessage } from "./errors.js";
-
-type ToolContent = { type?: string; text?: string };
-type ToolResult = { content?: ToolContent[]; isError?: boolean };
-export type ToolExecution = {
-  ok: boolean;
-  text: string;
-};
-type McpTool = {
-  name: string;
-  description?: string;
-  inputSchema?: Record<string, unknown>;
-};
+import type { ToolExecution, ToolResult, McpTool } from "./types.js";
 
 let clientPromise: Promise<Client> | undefined;
 

@@ -47,6 +47,167 @@ const renameValue = ref("");
 const deleteChatId = ref<number | null>(null);
 const deleteChatName = ref("");
 const deleteConfirmation = ref("");
+const attachmentInput = ref<HTMLInputElement | null>(null);
+const attachments = ref<File[]>([]);
+const attachmentContents = ref<Record<string, string>>({});
+const expandedAttachments = ref<Record<string, boolean>>({});
+const hiddenAttachments = ref<Record<string, boolean>>({});
+
+// Composer actions are kept in one place so future tools can be added without
+// coupling their controls to the message composer markup.
+const composerActions = {
+  attach: () => attachmentInput.value?.click(),
+};
+
+// Key helper to uniquely identify files in state maps
+function getFileKey(file: { name: string; url?: string; content?: string; lastModified?: number }) {
+  if ("url" in file && file.url) return `${file.name}:${file.url}`;
+  if ("lastModified" in file && file.lastModified) return `${file.name}:${file.lastModified}`;
+  if ("content" in file && file.content) return `${file.name}:${file.content.length}`;
+  return file.name;
+}
+
+// Keep selected files visible and load their text previews
+async function handleFileSelection(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  if (!files.length) return;
+
+  for (const file of files) {
+    // Read text files for preview
+    const text = await file.text();
+    const key = getFileKey(file);
+    attachmentContents.value[key] = text;
+    expandedAttachments.value[key] = false;
+    hiddenAttachments.value[key] = false;
+  }
+
+  attachments.value.push(...files);
+  input.value = "";
+}
+
+// Remove attachment and clean up state
+function removeAttachment(index: number) {
+  const file = attachments.value[index];
+  if (file) {
+    const key = getFileKey(file);
+    delete attachmentContents.value[key];
+    delete expandedAttachments.value[key];
+    delete hiddenAttachments.value[key];
+  }
+  attachments.value.splice(index, 1);
+}
+
+// Create a new FileList from the current attachments so it can be sent with the message.
+function getAttachmentFileList(): FileList {
+  const transfer = new DataTransfer();
+  attachments.value.forEach((file) => transfer.items.add(file));
+  return transfer.files;
+}
+
+// Get the 5-line preview text
+function getPreviewText(
+  file: File | { name: string; url?: string; content?: string; lastModified?: number },
+): string {
+  const text = getDisplayContent(file);
+  if (!text) return "Loading content...";
+
+  // Extract up to 3 lines
+  const lines = text.split("\n").slice(0, 3).join("\n");
+  const maxChars = 160;
+
+  if (lines.length > maxChars) {
+    return lines.slice(0, maxChars).trim() + "…";
+  }
+
+  if (text.length > lines.length) {
+    return lines.trim() + "…";
+  }
+
+  return lines;
+}
+
+watch(
+  messageList,
+  (messages) => {
+    for (const msg of messages) {
+      if (msg.attachments?.length) {
+        for (const file of msg.attachments) {
+          void loadFileContentIfNeeded(file);
+        }
+      }
+    }
+  },
+  { immediate: true, deep: true },
+);
+
+// Toggle expanded view
+function toggleExpand(file: File | { name: string; url?: string; lastModified?: number }) {
+  const key = getFileKey(file);
+  expandedAttachments.value[key] = !expandedAttachments.value[key];
+}
+
+// Hide or show attachment card completely
+function toggleHideAttachment(file: File | { name: string; url?: string; lastModified?: number }) {
+  const key = getFileKey(file);
+  hiddenAttachments.value[key] = !hiddenAttachments.value[key];
+}
+
+// Get file content from URL
+async function fetchFileContent(url: string): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
+  return await response.text();
+}
+
+// Store loaded file contents by key
+const loadedContents = ref<Record<string, string>>({});
+
+async function loadFileContentIfNeeded(file: {
+  name: string;
+  url?: string;
+  lastModified?: number;
+}) {
+  const key = getFileKey(file);
+  // Return cached version if already fetched
+  if (attachmentContents.value[key]) return attachmentContents.value[key];
+  if (loadedContents.value[key]) return loadedContents.value[key];
+
+  // Fetch remote content asynchronously if URL exists
+  if (file.url) {
+    try {
+      const content = await fetchFileContent(file.url);
+      loadedContents.value[key] = content;
+      return content;
+    } catch (err) {
+      console.error("Failed to fetch file content:", err);
+      return "Failed to load content";
+    }
+  }
+
+  return "";
+}
+
+// Clean display content getter with no side-effects
+function getDisplayContent(file: {
+  name: string;
+  url?: string;
+  content?: string;
+  lastModified?: number;
+}): string {
+  const key = getFileKey(file);
+
+  if ("content" in file && file.content) return file.content;
+  if (attachmentContents.value[key]) return attachmentContents.value[key];
+  if (loadedContents.value[key]) return loadedContents.value[key];
+
+  // Trigger async fetch if url is available but content not yet cached
+  if (file.url) {
+    void loadFileContentIfNeeded(file);
+  }
+
+  return "";
+}
 
 // Open the rename editor for a sidebar chat and preload the current title.
 function openRename(chat: { id: number; title: string }) {
@@ -122,8 +283,14 @@ watchEffect(() => {
 function handleComposerKeydown(event: KeyboardEvent) {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
-    void sendMessage();
+    void submitMessage();
   }
+}
+
+// Send the current draft and clear selected files only after a successful request.
+async function submitMessage() {
+  const sent = await sendMessage(getAttachmentFileList());
+  if (sent) attachments.value = [];
 }
 
 // Convert Markdown into sanitized HTML before it is rendered in the chat.
@@ -329,6 +496,60 @@ function renderMarkdown(content: string) {
                   </summary>
                   <div class="mt-2 whitespace-pre-wrap leading-6">{{ message.thinking }}</div>
                 </details>
+
+                <!-- Attached files rendering inside MessageList -->
+                <div v-if="message.attachments?.length" class="mb-3 space-y-2">
+                  <div
+                    v-for="file in message.attachments"
+                    :key="getFileKey(file)"
+                    class="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)] p-2.5 text-xs"
+                  >
+                    <div
+                      class="flex items-center justify-between font-mono text-[11px] text-[var(--theme-muted)]"
+                    >
+                      <span class="font-semibold">{{ file.name }}</span>
+                      <div class="flex items-center gap-2">
+                        <button
+                          type="button"
+                          class="text-[10px] uppercase text-[var(--theme-accent)] hover:underline"
+                          @click="toggleExpand(file)"
+                        >
+                          {{ expandedAttachments[getFileKey(file)] ? "Show less" : "Show full" }}
+                        </button>
+                        <button
+                          type="button"
+                          class="text-[10px] uppercase text-[var(--theme-muted)] hover:underline"
+                          @click="toggleHideAttachment(file)"
+                        >
+                          {{
+                            hiddenAttachments[getFileKey(file)]
+                              ? "Unhide attachment"
+                              : "Hide attachment"
+                          }}
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Message List Preview Block -->
+                    <div
+                      v-if="!hiddenAttachments[getFileKey(file)]"
+                      class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
+                      @click="toggleExpand(file)"
+                    >
+                      <pre
+                        v-if="expandedAttachments[getFileKey(file)]"
+                        class="max-h-96 overflow-y-auto whitespace-pre-wrap break-all"
+                        >{{ getDisplayContent(file) || "Loading content..." }}</pre
+                      >
+                      <pre
+                        v-else
+                        class="max-h-24 overflow-hidden whitespace-pre-wrap break-all opacity-80"
+                        >{{ getPreviewText(file) }}</pre
+                      >
+                    </div>
+                  </div>
+                </div>
+
                 <div
                   class="min-h-14 w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-subtle)]"
                   v-html="renderMarkdown(message.content)"
@@ -381,7 +602,7 @@ function renderMarkdown(content: string) {
           </div>
           <form
             class="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-input)] p-3 shadow-[0_8px_30px_rgba(122,108,91,0.08)]"
-            @submit.prevent="sendMessage"
+            @submit.prevent="submitMessage"
           >
             <textarea
               v-model="draft"
@@ -399,9 +620,19 @@ function renderMarkdown(content: string) {
                   type="button"
                   class="text-xs text-[var(--theme-muted)]"
                   aria-label="Attach a file"
+                  @click="composerActions.attach"
                 >
                   ＋ Attach
                 </button>
+                <input
+                  ref="attachmentInput"
+                  class="hidden"
+                  type="file"
+                  multiple
+                  accept=".txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
+                  aria-label="Choose files to attach"
+                  @change="handleFileSelection"
+                />
                 <label
                   class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
                   for="composer-model"
@@ -436,11 +667,69 @@ function renderMarkdown(content: string) {
               <button
                 class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                 type="submit"
-                :disabled="!draft.trim() || isGenerating"
+                :disabled="(!draft.trim() && !attachments.length) || isGenerating"
                 aria-label="Send message"
               >
                 ↑
               </button>
+            </div>
+            <div v-if="attachments.length" class="mt-3 space-y-2 px-2">
+              <div
+                v-for="(file, index) in attachments"
+                :key="getFileKey(file)"
+                class="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)] p-2.5 text-xs"
+              >
+                <!-- Header with File Name, Hide Toggle, Expand Toggle, and Delete -->
+                <div
+                  class="flex items-center justify-between font-mono text-[11px] text-[var(--theme-muted)]"
+                >
+                  <span class="font-semibold">{{ file.name }}</span>
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      class="text-[10px] uppercase text-[var(--theme-accent)] hover:underline"
+                      @click="toggleExpand(file)"
+                    >
+                      {{ expandedAttachments[getFileKey(file)] ? "Show less" : "Show full" }}
+                    </button>
+                    <button
+                      type="button"
+                      class="text-[10px] uppercase text-[var(--theme-muted)] hover:underline"
+                      @click="toggleHideAttachment(file)"
+                    >
+                      {{
+                        hiddenAttachments[getFileKey(file)]
+                          ? "Unhide attachment"
+                          : "Hide attachment"
+                      }}
+                    </button>
+                    <button
+                      type="button"
+                      class="text-[var(--theme-subtle)] hover:text-[var(--theme-accent)]"
+                      :aria-label="`Remove ${file.name}`"
+                      @click="removeAttachment(index)"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Interactive Code / Text Preview Block -->
+                <div
+                  v-if="!hiddenAttachments[getFileKey(file)]"
+                  class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
+                  @click="toggleExpand(file)"
+                >
+                  <pre
+                    v-if="expandedAttachments[getFileKey(file)]"
+                    class="whitespace-pre-wrap break-all"
+                    >{{ attachmentContents[getFileKey(file)] || getDisplayContent(file) }}</pre
+                  >
+                  <pre v-else class="line-clamp-5 whitespace-pre-wrap break-all opacity-80">{{
+                    getPreviewText(file)
+                  }}</pre>
+                </div>
+              </div>
             </div>
           </form>
           <p class="mt-3 text-center font-mono text-[10px] text-[var(--theme-subtle)]">

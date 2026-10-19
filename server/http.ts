@@ -12,6 +12,7 @@ import {
   getChatMessages,
   getUserBySession,
   listChats,
+  ownsChat,
   login,
   register,
   renameChat,
@@ -35,6 +36,53 @@ async function readJson(request: IncomingMessage) {
   let body = "";
   for await (const chunk of request) body += chunk;
   return body ? (JSON.parse(body) as Record<string, unknown>) : {};
+}
+
+const maxUploadBytes = 10 * 1024 * 1024;
+
+// Extract text files from the browser's multipart form without storing uploads on disk.
+async function readMultipartFiles(request: IncomingMessage) {
+  const contentType = request.headers["content-type"] ?? "";
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
+  if (!boundary) throw new Error("Invalid multipart upload.");
+
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.length;
+    if (totalBytes > maxUploadBytes)
+      throw new Error("Uploads must be smaller than 10 MB.");
+    chunks.push(buffer);
+  }
+
+  const body = Buffer.concat(chunks);
+  const delimiter = Buffer.from(`--${boundary}`);
+  const files: { name: string; content: string }[] = [];
+  let position = body.indexOf(delimiter);
+
+  while (position !== -1) {
+    const partStart = position + delimiter.length;
+    const nextPosition = body.indexOf(delimiter, partStart);
+    if (nextPosition === -1) break;
+
+    const part = body.subarray(partStart, nextPosition);
+    const headerEnd = part.indexOf(Buffer.from("\r\n\r\n"));
+    if (headerEnd !== -1) {
+      const headers = part.subarray(0, headerEnd).toString("utf8");
+      const filename = headers.match(/filename="([^"]*)"/i)?.[1];
+      if (filename) {
+        const content = part
+          .subarray(headerEnd + 4, part.length - 2)
+          .toString("utf8");
+        files.push({ name: filename, content });
+      }
+    }
+    position = nextPosition;
+  }
+
+  return files;
 }
 
 // Require a valid bearer token before allowing protected API routes.
@@ -164,6 +212,18 @@ async function handleRequest(
         typeof body.title === "string" ? body.title : undefined,
       );
       sendJson(response, 201, { chatId });
+      return;
+    }
+
+    // Read uploaded text files and return their contents for the current model request.
+    const uploadMatch = path.match(/^\/api\/chats\/(\d+)\/upload$/);
+    if (uploadMatch && request.method === "POST") {
+      const chatId = Number(uploadMatch[1]);
+      if (!(await ownsChat(user.id, chatId))) {
+        sendJson(response, 404, { error: "Chat not found." });
+        return;
+      }
+      sendJson(response, 200, { files: await readMultipartFiles(request) });
       return;
     }
 

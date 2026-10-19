@@ -3,37 +3,14 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 
 import { createApiClient } from "../services/api";
-import type { Chat, ChatMessage, ModelValue, SavedMessage, User } from "../types/chat";
-
-type ModelMessage = {
-  type: "models";
-  models?: ModelValue[];
-};
-
-type AssistantMessage = {
-  type: "message";
-  message: {
-    content?: string;
-    thinking?: string;
-  };
-};
-
-type ErrorMessage = {
-  type: "error";
-  error: string;
-};
-type ChatTitleMessage = {
-  type: "chat_title";
-  chat: Chat;
-};
-
-type ServerMessage =
-  | ModelMessage
-  | AssistantMessage
-  | ErrorMessage
-  | ChatTitleMessage
-  | { type: "authenticated"; user: User }
-  | { type: "done" };
+import type {
+  Chat,
+  ChatMessage,
+  ModelValue,
+  SavedMessage,
+  User,
+  ServerMessage,
+} from "../types/chat";
 
 export const useOllamaStore = defineStore("ollama", () => {
   const user = ref<User | null>(null);
@@ -231,6 +208,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         hour: "numeric",
         minute: "2-digit",
       }),
+      attachments: message.attachments,
     }));
   }
 
@@ -302,22 +280,36 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   // Send the current draft to the active chat over the authenticated socket.
-  function sendMessage() {
+  async function sendMessage(attachments: FileList | null = null) {
     const content = draft.value.trim();
+    const hasAttachments = Boolean(attachments?.length);
+    const chatId = activeChatId.value;
     if (
-      !content ||
-      !activeChatId.value ||
+      (!content && !hasAttachments) ||
+      !chatId ||
       isGenerating.value ||
       !socket ||
       socket.readyState !== WebSocket.OPEN
     )
-      return;
+      return false;
+
+    let uploadedContent = "";
+    try {
+      uploadedContent = await uploadFiles(chatId, attachments);
+    } catch {
+      // Do not send a message that refers to files the server did not receive.
+      return false;
+    }
 
     messageList.value.push({
       id: Date.now(),
       role: "user",
       content,
       time: "now",
+      attachments: Array.from(attachments || []).map((file) => ({
+        name: file.name,
+        url: URL.createObjectURL(file),
+      })),
     });
     draft.value = "";
     isGenerating.value = true;
@@ -325,14 +317,34 @@ export const useOllamaStore = defineStore("ollama", () => {
     socket.send(
       JSON.stringify({
         type: "message",
-        chatId: activeChatId.value,
+        chatId,
         model: selectedModel.value,
-        prompt: content,
+        prompt: [content, uploadedContent].filter(Boolean).join("\n\n"),
         tsundere: tsundere.value,
         thinking: thinking.value,
         stream: streaming.value,
       }),
     );
+
+    return true;
+  }
+
+  // Upload text document files to the server for model ingestion.
+  async function uploadFiles(chatId: number, files: FileList | null) {
+    if (!files?.length) return "";
+
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+
+    const response = await api.request<{ files: { name: string; content: string }[] }>(
+      `/api/chats/${chatId}/upload`,
+      { method: "POST", body: formData },
+    );
+    return response.files
+      .map((file) => `File: ${file.name}\n\`\`\`\n${file.content}\n\`\`\``)
+      .join("\n\n");
   }
 
   return {

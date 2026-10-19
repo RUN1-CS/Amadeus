@@ -15,8 +15,8 @@ import {
   ownsChat,
   renameChat,
   saveMessage,
-  type PublicUser,
 } from "./db.js";
+import type { PublicUser } from "./types.js";
 import type { ClientMessage } from "./protocol.js";
 
 const socketUsers = new WeakMap<WebSocket, PublicUser>();
@@ -111,6 +111,7 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
       ws.send(JSON.stringify({ type: "models", models: result.models }));
       if (result.error)
         ws.send(JSON.stringify({ type: "error", error: result.error }));
+    } else if (data.type === "memory") {
     } else if (data.type === "message") {
       await sendMessage(ws, user, data);
     }

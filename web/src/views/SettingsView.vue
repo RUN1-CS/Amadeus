@@ -214,6 +214,12 @@ async function saveAccount() {
             >
               Save account
             </button>
+            <button
+              class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
+              @click="router.push('/memory')"
+            >
+              Memory settings
+            </button>
           </form>
         </div>
       </div>
