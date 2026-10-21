@@ -1,32 +1,34 @@
 services:
   postgres:
-    image: pgvector/pgvector:pg17
+    image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg17}
     environment:
-      POSTGRES_DB: amadeus
-      POSTGRES_USER: amadeus
-      POSTGRES_PASSWORD: amadeus
+      POSTGRES_DB: ${POSTGRES_DB:-amadeus}
+      POSTGRES_USER: ${POSTGRES_USER:-amadeus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U amadeus -d amadeus"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
+      test:
+        ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: ${POSTGRES_HEALTHCHECK_INTERVAL:-5s}
+      timeout: ${POSTGRES_HEALTHCHECK_TIMEOUT:-5s}
+      retries: ${POSTGRES_HEALTHCHECK_RETRIES:-10}
+    restart: unless-stopped
 
   server:
     build:
       context: ./server
       dockerfile: Dockerfile
     environment:
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_EMBEDDING_MODEL: nomic-embed-text
-      OLLAMA_NUM_CTX: 4096
-      DATABASE_URL: postgres://amadeus:amadeus@postgres:5432/amadeus
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-4096}
+      DATABASE_URL: postgres://${POSTGRES_USER:-amadeus}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-amadeus}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8080:8080"
+      - "${SERVER_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -37,7 +39,7 @@ services:
       context: ./web
       dockerfile: Dockerfile
     ports:
-      - "3000:80"
+      - "${WEB_PORT:-3000}:80"
     depends_on:
       - server
     restart: unless-stopped
