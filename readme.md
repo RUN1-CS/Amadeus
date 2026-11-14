@@ -70,9 +70,8 @@ docker compose logs -f
 
 Copy `.env.example` to `.env` and set the required database and ComfyUI web credentials.
 The server connects to ComfyUI through `COMFYUI_BASE_URL` (the Compose default is
-`http://comfyui:8188`). `COMFYUI_DEFAULT_NEGATIVE_PROMPT` provides the administrator's
-default negative prompt when a user leaves that field empty; users can still provide a
-different negative prompt for each image.
+`http://comfyui:8188`). `COMFYUI_NEGATIVE_PROMPT` provides the administrator's
+negative prompt for administration purposes; the user can still add some.
 
 The chat composer always shows the ComfyUI positive prompt, negative prompt, and
 checkpoint controls. Enable **Generate image** to submit those values to ComfyUI.
