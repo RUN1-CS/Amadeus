@@ -4,7 +4,9 @@ import { loadModels } from "./ai.js";
 import { loadComfyModels } from "./comfyui.js";
 import { createHttpServer } from "./http.js";
 import { attachWebSocketServer } from "./websocket.js";
+import { initializeDatabase } from "./db.js";
 
+await initializeDatabase();
 await loadModels();
 await loadComfyModels();
 
