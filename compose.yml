@@ -47,9 +47,9 @@ services:
       - "127.0.0.1:1111:1111"
 
     volumes:
-      - ./models:/opt/ComfyUI/models
       - ./output:/opt/ComfyUI/output
       - ./input:/opt/ComfyUI/input
+      - ${COMFYUI_MODELS_PATH}:/opt/ComfyUI/models
 
     environment:
       AUTO_UPDATE: "false"

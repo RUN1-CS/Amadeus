@@ -17,21 +17,29 @@ async function comfyFetch(path: string, init?: RequestInit) {
 }
 
 export async function loadComfyModels() {
-  try {
-    const response = await comfyFetch("/object_info/CheckpointLoaderSimple");
-    if (!response.ok)
-      throw new Error(`ComfyUI returned HTTP ${response.status}.`);
-    const objectInfo = (await response.json()) as {
-      CheckpointLoaderSimple?: {
-        input?: { required?: { ckpt_name?: [string[]] } };
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const response = await comfyFetch("/object_info/CheckpointLoaderSimple");
+      if (!response.ok)
+        throw new Error(`ComfyUI returned HTTP ${response.status}.`);
+      const objectInfo = (await response.json()) as {
+        CheckpointLoaderSimple?: {
+          input?: { required?: { ckpt_name?: [string[]] } };
+        };
       };
-    };
-    cachedModels =
-      objectInfo.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ?? [];
-    modelLoadError = undefined;
-  } catch (error) {
-    modelLoadError = getErrorMessage(error);
-    console.error("Could not load ComfyUI models:", modelLoadError);
+      cachedModels =
+        objectInfo.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ??
+        [];
+      modelLoadError = undefined;
+      return cachedModels;
+    } catch (error) {
+      modelLoadError = getErrorMessage(error);
+      if (attempt === 4) {
+        console.error("Could not load ComfyUI models:", modelLoadError);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
   return cachedModels;
 }
