@@ -9,3 +9,7 @@ export const configuredContextWindow = Math.max(
 export const embeddingModel =
   process.env.OLLAMA_EMBEDDING_MODEL ?? "nomic-embed-text";
 export const reservedOutputTokens = 1024;
+export const comfyUiBaseUrl =
+  process.env.COMFYUI_BASE_URL ?? "http://comfyui:8188";
+export const comfyUiNegativePrompt =
+  process.env.COMFYUI_DEFAULT_NEGATIVE_PROMPT ?? "";

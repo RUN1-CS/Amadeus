@@ -37,6 +37,12 @@ export type SavedMessage = {
   content: string;
   model?: string;
   createdAt: string;
+  attachments?: AttachmentItem[];
+};
+export type AttachmentItem = {
+  name: string;
+  url?: string;
+  kind?: "image" | "file";
 };
 export type SimilarMessage = Pick<SavedMessage, "role" | "content"> & {
   similarity: number;

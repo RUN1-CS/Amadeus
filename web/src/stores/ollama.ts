@@ -24,6 +24,11 @@ export const useOllamaStore = defineStore("ollama", () => {
   const authError = ref("");
   const models = ref<string[]>([]);
   const selectedModel = ref("");
+  const comfyModels = ref<string[]>([]);
+  const selectedComfyModel = ref("");
+  const negativePrompt = ref("");
+  const defaultNegativePrompt = ref("");
+  const generateImage = ref(false);
   const draft = ref("");
   const isGenerating = ref(false);
   const tsundere = ref(false);
@@ -64,6 +69,7 @@ export const useOllamaStore = defineStore("ollama", () => {
       const response = await api.request<{ user: User }>("/api/auth/me");
       user.value = response.user;
       connectSocket();
+      await loadComfyModels();
       try {
         await loadChats();
       } catch (error) {
@@ -92,6 +98,7 @@ export const useOllamaStore = defineStore("ollama", () => {
       });
       storeSession(response.token, response.user);
       connectSocket();
+      await loadComfyModels();
       await loadChats();
     } catch (error) {
       authError.value = error instanceof Error ? error.message : "Authentication failed.";
@@ -239,6 +246,24 @@ export const useOllamaStore = defineStore("ollama", () => {
     if (!selectedModel.value || !models.value.includes(selectedModel.value)) {
       selectedModel.value = models.value[0] ?? "";
     }
+
+  }
+
+  async function loadComfyModels() {
+    try {
+      const response = await api.request<{
+        models: string[];
+        defaultNegativePrompt: string;
+      }>("/api/comfy/models");
+      comfyModels.value = response.models;
+      defaultNegativePrompt.value = response.defaultNegativePrompt;
+      if (!negativePrompt.value) negativePrompt.value = response.defaultNegativePrompt;
+      if (!selectedComfyModel.value || !comfyModels.value.includes(selectedComfyModel.value)) {
+        selectedComfyModel.value = comfyModels.value[0] ?? "";
+      }
+    } catch (error) {
+      console.error("Could not load ComfyUI models:", error);
+    }
   }
 
   // Handle socket events like model updates, streamed content, and errors.
@@ -251,7 +276,12 @@ export const useOllamaStore = defineStore("ollama", () => {
         socket?.send(JSON.stringify({ type: "fetch_models" }));
       } else if (message.type === "message") {
         const content = message.message.content ?? "";
-        addAssistantMessage(content, message.message.thinking ?? "", message.full ?? false);
+        addAssistantMessage(
+          content,
+          message.message.thinking ?? "",
+          message.full ?? false,
+          message.message.attachments,
+        );
       } else if (message.type === "chat_title") {
         chats.value = chats.value.map((chat) =>
           chat.id === message.chat.id ? message.chat : chat,
@@ -268,12 +298,18 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   // Append streamed assistant output to the current message or create a new one.
-  function addAssistantMessage(content: string, thinkingContent = "", isFull = false) {
+  function addAssistantMessage(
+    content: string,
+    thinkingContent = "",
+    isFull = false,
+    attachments: ChatMessage["attachments"] = [],
+  ) {
     const lastMessage = messageList.value.at(-1);
 
     if (lastMessage?.role === "assistant" && isGenerating.value) {
       lastMessage.content += content;
       lastMessage.thinking = (lastMessage.thinking ?? "") + thinkingContent;
+      if (attachments.length) lastMessage.attachments = attachments;
 
       if (isFull) {
         lastMessage.content = content;
@@ -287,6 +323,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         thinking: thinkingContent,
         time: "now",
         model: selectedModel.value,
+        attachments,
       });
     }
   }
@@ -302,12 +339,16 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   // Send the current draft to the active chat over the authenticated socket.
-  async function sendMessage(attachments: FileList | null = null) {
+  async function sendMessage(
+    attachments: FileList | null = null,
+    imageOptions?: { positivePrompt: string; negativePrompt: string; model: string },
+  ) {
     const content = draft.value.trim();
     const hasAttachments = Boolean(attachments?.length);
+    const requestContent = imageOptions?.positivePrompt.trim() || content;
     const chatId = activeChatId.value;
     if (
-      (!content && !hasAttachments) ||
+      (!requestContent && !hasAttachments) ||
       !chatId ||
       isGenerating.value ||
       !socket ||
@@ -326,7 +367,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     messageList.value.push({
       id: Date.now(),
       role: "user",
-      content,
+      content: requestContent,
       time: "now",
       attachments: Array.from(attachments || []).map((file) => ({
         name: file.name,
@@ -336,17 +377,18 @@ export const useOllamaStore = defineStore("ollama", () => {
     draft.value = "";
     isGenerating.value = true;
 
-    socket.send(
-      JSON.stringify({
-        type: "message",
+    socket.send(JSON.stringify({
+        type: imageOptions ? "generate_image" : "message",
         chatId,
         model: selectedModel.value,
-        prompt: [content, uploadedContent].filter(Boolean).join("\n\n"),
+        prompt: [requestContent, uploadedContent].filter(Boolean).join("\n\n"),
+        positivePrompt: imageOptions?.positivePrompt,
+        negativePrompt: imageOptions?.negativePrompt,
+        generativeModel: imageOptions?.model,
         tsundere: tsundere.value,
         thinking: thinking.value,
         stream: streaming.value,
-      }),
-    );
+      }));
 
     return true;
   }
@@ -395,8 +437,14 @@ export const useOllamaStore = defineStore("ollama", () => {
     tsundere,
     thinking,
     streaming,
+    comfyModels,
+    selectedComfyModel,
+    negativePrompt,
+    defaultNegativePrompt,
+    generateImage,
     messageList,
     setModels,
+    loadComfyModels,
     receiveMessage,
     selectPrompt,
     clearMessages,

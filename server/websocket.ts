@@ -18,6 +18,7 @@ import {
 } from "./db.js";
 import type { PublicUser } from "./types.js";
 import type { ClientMessage } from "./protocol.js";
+import { generateImage } from "./comfyui.js";
 
 const socketUsers = new WeakMap<WebSocket, PublicUser>();
 
@@ -26,15 +27,54 @@ function parseMessage(message: RawData): ClientMessage {
   return JSON.parse(message.toString()) as ClientMessage;
 }
 
+async function sendGeneratedImage(
+    ws: WebSocket,
+    user: PublicUser,
+    data: ClientMessage,
+  ) {
+    if (!data.chatId || !(await ownsChat(user.id, data.chatId))) {
+      throw new Error("Choose a valid chat before generating an image.");
+    }
+    const positivePrompt = data.positivePrompt ?? data.prompt ?? "";
+    const image = await generateImage(
+      data.generativeModel ?? "",
+      positivePrompt,
+      data.negativePrompt ?? "",
+    );
+    const attachment = {
+      name: image.filename,
+      kind: "image" as const,
+      url: `/api/comfy/image?${new URLSearchParams(image).toString()}`,
+    };
+    await saveMessage(user.id, data.chatId, "user", positivePrompt, data.generativeModel);
+    await saveMessage(
+      user.id,
+      data.chatId,
+      "assistant",
+      "Generated image",
+      data.generativeModel,
+      undefined,
+      [attachment],
+    );
+    ws.send(
+      JSON.stringify({
+        type: "message",
+        message: { content: "Generated image", attachments: [attachment] },
+        full: true,
+      }),
+    );
+    ws.send(JSON.stringify({ type: "done" }));
+}
+
 // Handle a user prompt by building the model request, streaming the answer, and saving both sides.
 async function sendMessage(
-  ws: WebSocket,
-  user: PublicUser,
-  data: ClientMessage,
+    ws: WebSocket,
+    user: PublicUser,
+    data: ClientMessage,
 ) {
-  if (!data.chatId || !(await ownsChat(user.id, data.chatId))) {
-    throw new Error("Choose a valid chat before sending a message.");
-  }
+    if (!data.chatId || !(await ownsChat(user.id, data.chatId))) {
+      throw new Error("Choose a valid chat before sending a message.");
+    }
 
   const history = await getChatMessages(user.id, data.chatId);
   if (!history)
@@ -116,6 +156,8 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
     } else if (data.type === "memory") {
     } else if (data.type === "message") {
       await sendMessage(ws, user, data);
+    } else if (data.type === "generate_image") {
+      await sendGeneratedImage(ws, user, data);
     }
   } catch (error) {
     console.error("Request failed:", error);

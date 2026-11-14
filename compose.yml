@@ -24,6 +24,8 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-4096}
+      COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
+      COMFYUI_DEFAULT_NEGATIVE_PROMPT: ${COMFYUI_DEFAULT_NEGATIVE_PROMPT:-}
       DATABASE_URL: postgres://${POSTGRES_USER:-amadeus}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-amadeus}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -34,6 +36,36 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  comfyui:
+    image: ghcr.io/ai-dock/comfyui@sha256:ca4c95d4d4743d7d5683e57f5e0358fe586bc57578f66c2a844e9fa0650cc619
+
+    container_name: comfyui
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:8188:8188"
+      - "127.0.0.1:1111:1111"
+
+    volumes:
+      - ./models:/opt/ComfyUI/models
+      - ./output:/opt/ComfyUI/output
+      - ./input:/opt/ComfyUI/input
+
+    environment:
+      AUTO_UPDATE: "false"
+      WEB_ENABLE_AUTH: ${WEBUI_ENABLE_AUTH:-true}
+      WEB_USER: ${WEBUI_USERNAME:-admin}
+      WEB_PASSWORD: ${WEBUI_PASSWORD:?Set WEB_PASSWORD in .env}
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: cdi
+              device_ids:
+                - nvidia.com/gpu=all
+              capabilities: [gpu]
+
   web:
     build:
       context: ./web
@@ -42,7 +74,16 @@ services:
       - "${WEB_PORT:-3000}:80"
     depends_on:
       - server
+      - comfyui
     restart: unless-stopped
 
 volumes:
   postgres-data:
+
+networks:
+  default:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1

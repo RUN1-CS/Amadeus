@@ -7,6 +7,7 @@ import DOMPurify from "dompurify";
 import { marked } from "marked";
 
 import { useOllamaStore } from "./stores/ollama";
+import type { Chat } from "./types/chat";
 import { applyTheme, loadTheme } from "./services/theme";
 
 applyTheme(loadTheme());
@@ -23,6 +24,10 @@ const {
   tsundere,
   thinking,
   streaming,
+  negativePrompt,
+  generateImage,
+  selectedComfyModel,
+  comfyModels,
   chats,
   activeChatId,
   sidebarVisible,
@@ -39,7 +44,9 @@ const {
   logout,
 } = ollamaStore;
 
-const activeChat = computed(() => chats.value.find((chat) => chat.id === activeChatId.value));
+const activeChat = computed(() =>
+  chats.value.find((chat: Chat) => chat.id === activeChatId.value),
+);
 const chatScroll = ref<HTMLElement | null>(null);
 const shouldFollowLatest = ref(true);
 const renameChatId = ref<number | null>(null);
@@ -52,6 +59,7 @@ const attachments = ref<File[]>([]);
 const attachmentContents = ref<Record<string, string>>({});
 const expandedAttachments = ref<Record<string, boolean>>({});
 const hiddenAttachments = ref<Record<string, boolean>>({});
+const imagePrompt = ref("");
 
 // Composer actions are kept in one place so future tools can be added without
 // coupling their controls to the message composer markup.
@@ -65,6 +73,21 @@ function getFileKey(file: { name: string; url?: string; content?: string; lastMo
   if ("lastModified" in file && file.lastModified) return `${file.name}:${file.lastModified}`;
   if ("content" in file && file.content) return `${file.name}:${file.content.length}`;
   return file.name;
+}
+
+async function loadImageIfNeeded(file: { name: string; url?: string; kind?: string }) {
+  if (file.kind !== "image" || !file.url) return;
+  const key = getFileKey(file);
+  if (loadedImageUrls.value[key]) return;
+  try {
+    const response = await fetch(`http://${window.location.hostname}:8080${file.url}`, {
+      headers: { Authorization: `Bearer ${ollamaStore.token}` },
+    });
+    if (!response.ok) throw new Error(`Failed to fetch generated image: ${response.statusText}`);
+    loadedImageUrls.value[key] = URL.createObjectURL(await response.blob());
+  } catch (error) {
+    console.error("Failed to fetch generated image:", error);
+  }
 }
 
 // Keep selected files visible and load their text previews
@@ -127,6 +150,8 @@ function getPreviewText(
   return lines;
 }
 
+const loadedImageUrls = ref<Record<string, string>>({});
+
 watch(
   messageList,
   (messages) => {
@@ -134,6 +159,7 @@ watch(
       if (msg.attachments?.length) {
         for (const file of msg.attachments) {
           void loadFileContentIfNeeded(file);
+          void loadImageIfNeeded(file);
         }
       }
     }
@@ -278,8 +304,20 @@ function handleComposerKeydown(event: KeyboardEvent) {
 
 // Send the current draft and clear selected files only after a successful request.
 async function submitMessage() {
-  const sent = await sendMessage(getAttachmentFileList());
-  if (sent) attachments.value = [];
+  const sent = await sendMessage(
+    getAttachmentFileList(),
+    generateImage.value
+      ? {
+          positivePrompt: imagePrompt.value.trim(),
+          negativePrompt: negativePrompt.value,
+          model: selectedComfyModel.value,
+        }
+      : undefined,
+  );
+  if (sent) {
+    attachments.value = [];
+    if (generateImage.value) imagePrompt.value = "";
+  }
 }
 
 // Convert Markdown into sanitized HTML before it is rendered in the chat.
@@ -519,9 +557,15 @@ function renderMarkdown(content: string | null | undefined) {
                       </div>
                     </div>
 
+                    <img
+                      v-if="file.kind === 'image'"
+                      :src="loadedImageUrls[getFileKey(file)]"
+                      :alt="file.name"
+                      class="mt-1.5 max-h-[32rem] w-full rounded bg-[var(--theme-sidebar)] object-contain"
+                    />
                     <!-- Message List Preview Block -->
                     <div
-                      v-if="!hiddenAttachments[getFileKey(file)]"
+                      v-else-if="!hiddenAttachments[getFileKey(file)]"
                       class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
                       @click="toggleExpand(file)"
                     >
@@ -601,6 +645,26 @@ function renderMarkdown(content: string | null | undefined) {
               aria-label="Message your local assistant"
               @keydown="handleComposerKeydown"
             ></textarea>
+            <div class="mt-3 grid gap-3 border-t border-[var(--theme-border)] pt-3 sm:grid-cols-2">
+              <label class="block text-xs font-semibold text-[var(--theme-muted)]">
+                Positive image prompt
+                <textarea
+                  v-model="imagePrompt"
+                  rows="2"
+                  placeholder="Describe the image to generate"
+                  class="mt-1 w-full resize-y rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 text-xs text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
+                ></textarea>
+              </label>
+              <label class="block text-xs font-semibold text-[var(--theme-muted)]">
+                Negative image prompt
+                <textarea
+                  v-model="negativePrompt"
+                  rows="2"
+                  placeholder="Admin default applies when empty"
+                  class="mt-1 w-full resize-y rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 text-xs text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
+                ></textarea>
+              </label>
+            </div>
             <div
               class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--theme-border)] pt-3"
             >
@@ -640,6 +704,28 @@ function renderMarkdown(content: string | null | undefined) {
                     </option>
                   </select>
                 </label>
+                <label
+                  class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
+                  for="comfy-model"
+                >
+                  Image model
+                  <select
+                    id="comfy-model"
+                    v-model="selectedComfyModel"
+                    class="max-w-[170px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
+                  >
+                    <option v-if="comfyModels.length === 0" value="" disabled>
+                      No checkpoints found
+                    </option>
+                    <option v-for="model in comfyModels" :key="model" :value="model">
+                      {{ model }}
+                    </option>
+                  </select>
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
+                  <input v-model="generateImage" type="checkbox" class="accent-[var(--theme-accent)]" />
+                  Generate image
+                </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
                   <input v-model="tsundere" type="checkbox" class="accent-[var(--theme-accent)]" />
                   Tsundere
@@ -656,7 +742,10 @@ function renderMarkdown(content: string | null | undefined) {
               <button
                 class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                 type="submit"
-                :disabled="(!draft.trim() && !attachments.length) || isGenerating"
+                :disabled="
+                  (!(generateImage ? imagePrompt.trim() : draft.trim()) && !attachments.length) ||
+                  isGenerating
+                "
                 aria-label="Send message"
               >
                 ↑

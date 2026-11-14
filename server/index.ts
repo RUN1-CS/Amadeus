@@ -1,10 +1,12 @@
 // Starts the Node server and opens the WebSocket after Ollama models are loaded.
 import { port } from "./config.js";
 import { loadModels } from "./ai.js";
+import { loadComfyModels } from "./comfyui.js";
 import { createHttpServer } from "./http.js";
 import { attachWebSocketServer } from "./websocket.js";
 
 await loadModels();
+await loadComfyModels();
 
 const httpServer = createHttpServer();
 attachWebSocketServer(httpServer);

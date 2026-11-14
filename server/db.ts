@@ -191,9 +191,10 @@ export async function getChatMessages(
     id: number;
     sender: string;
     content: string;
+    attachments: SavedMessage["attachments"];
     createdAt: string;
   }>(
-    `SELECT id, sender, content, created_at AS "createdAt" FROM messages
+    `SELECT id, sender, content, attachments, created_at AS "createdAt" FROM messages
 		 WHERE chat_id = $1 ORDER BY id`,
     [chatId],
   );
@@ -203,6 +204,7 @@ export async function getChatMessages(
     content: message.content,
     model: message.sender === "user" ? undefined : message.sender,
     createdAt: message.createdAt,
+    attachments: message.attachments ?? [],
   }));
 }
 
@@ -214,13 +216,14 @@ export async function saveMessage(
   content: string,
   model?: string,
   embedding?: number[],
+  attachments: SavedMessage["attachments"] = [],
 ) {
   if (!(await ownsChat(userId, chatId))) return false;
   const sender = role === "user" ? "user" : (model ?? "assistant");
   await pool.query(
-    `INSERT INTO messages (chat_id, user_id, sender, content)
-     VALUES ($1, $2, $3, $4)`,
-    [chatId, userId, sender, content],
+    `INSERT INTO messages (chat_id, user_id, sender, content, attachments)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [chatId, userId, sender, content, JSON.stringify(attachments)],
   );
   if (embedding) {
     await pool.query(

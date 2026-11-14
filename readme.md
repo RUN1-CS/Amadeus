@@ -12,6 +12,7 @@ This project provides a simple chat interface and supporting client/server logic
 - Message-based interaction flow
 - Easy local setup for development
 - Extensible structure for adding new chat capabilities
+- ComfyUI image generation with selectable checkpoints, positive prompts, and negative prompts
 - Suitable for prototyping and experimentation
 
 ## Project Structure
@@ -67,7 +68,14 @@ docker compose logs -f
 
 ## Configuration
 
-The project does not use a `.env` file. Configure API endpoints, ports, and model/provider settings through the Docker Compose configuration or the relevant application configuration files.
+Copy `.env.example` to `.env` and set the required database and ComfyUI web credentials.
+The server connects to ComfyUI through `COMFYUI_BASE_URL` (the Compose default is
+`http://comfyui:8188`). `COMFYUI_DEFAULT_NEGATIVE_PROMPT` provides the administrator's
+default negative prompt when a user leaves that field empty; users can still provide a
+different negative prompt for each image.
+
+The chat composer always shows the ComfyUI positive prompt, negative prompt, and
+checkpoint controls. Enable **Generate image** to submit those values to ComfyUI.
 
 ## Contributing
 

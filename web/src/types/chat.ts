@@ -26,6 +26,7 @@ export interface AttachmentItem {
   url?: string;
   content?: string;
   lastModified?: number;
+  kind?: "image" | "file";
 }
 
 export interface ChatMessage {
@@ -45,6 +46,7 @@ export type AssistantMessage = {
   message: {
     content?: string;
     thinking?: string;
+    attachments?: AttachmentItem[];
   };
   full?: boolean;
 };

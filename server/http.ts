@@ -23,6 +23,7 @@ import {
   createMemory,
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
+import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
 
 // Write a JSON response with the CORS headers used by the browser client.
 function sendJson(response: ServerResponse, status: number, body: unknown) {
@@ -33,6 +34,15 @@ function sendJson(response: ServerResponse, status: number, body: unknown) {
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   });
   response.end(JSON.stringify(body));
+}
+
+function sendBinary(response: ServerResponse, status: number, body: Buffer, contentType: string) {
+  response.writeHead(status, {
+    "Content-Type": contentType,
+    "Cache-Control": "private, max-age=3600",
+    "Access-Control-Allow-Origin": "*",
+  });
+  response.end(body);
 }
 
 // Read the request body once and parse it as JSON for the route handlers.
@@ -201,6 +211,26 @@ async function handleRequest(
     // From here, every route requires a valid login session.
     const user = await requireUser(request, response);
     if (!user) return;
+
+    if (path === "/api/comfy/models" && request.method === "GET") {
+      if (getComfyModels().models.length === 0) await loadComfyModels();
+      sendJson(response, 200, getComfyModels());
+      return;
+    }
+
+    if (path === "/api/comfy/image" && request.method === "GET") {
+      const filename = url.searchParams.get("filename") ?? "";
+      const subfolder = url.searchParams.get("subfolder") ?? "";
+      const type = url.searchParams.get("type") ?? "output";
+      if (!filename || /[/\\]/.test(filename) || !["output", "input", "temp"].includes(type)) {
+        sendJson(response, 400, { error: "Invalid ComfyUI image reference." });
+        return;
+      }
+      const imageResponse = await getComfyImage({ filename, subfolder, type });
+      const contentType = imageResponse.headers.get("content-type") ?? "image/png";
+      sendBinary(response, 200, Buffer.from(await imageResponse.arrayBuffer()), contentType);
+      return;
+    }
 
     // Fetch all chats owned by the signed-in user.
     if (path === "/api/chats" && request.method === "GET") {

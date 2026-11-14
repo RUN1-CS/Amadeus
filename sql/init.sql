@@ -32,11 +32,14 @@ CREATE TABLE IF NOT EXISTS messages (
     user_id INT NOT NULL,
     sender VARCHAR(50) NOT NULL,
     content TEXT NOT NULL,
+    attachments JSONB NOT NULL DEFAULT '[]'::JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     FOREIGN KEY (chat_id, user_id)
         REFERENCES chats(id, user_id)
         ON DELETE CASCADE
 );
+
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::JSONB;
 
 CREATE INDEX IF NOT EXISTS messages_chat_created_idx
     ON messages (chat_id, created_at);

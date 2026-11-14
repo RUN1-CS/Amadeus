@@ -4,7 +4,7 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { storeToRefs } from "pinia";
 
-import { useOllamaStore } from "../stores/ollama";
+import { useOllamaStore } from "@/stores/ollama";
 
 const route = useRoute();
 const router = useRouter();
