@@ -7,6 +7,7 @@ import {
   generateChatTitle,
   getModels,
   getMessageEmbedding,
+  decideImageGeneration,
 } from "./ai.js";
 import { getErrorMessage } from "./errors.js";
 import {
@@ -46,7 +47,13 @@ async function sendGeneratedImage(
       kind: "image" as const,
       url: `/api/comfy/image?${new URLSearchParams(image).toString()}`,
     };
-    await saveMessage(user.id, data.chatId, "user", positivePrompt, data.generativeModel);
+    await saveMessage(
+      user.id,
+      data.chatId,
+      "user",
+      data.prompt ?? positivePrompt,
+      data.generativeModel,
+    );
     await saveMessage(
       user.id,
       data.chatId,
@@ -79,7 +86,7 @@ async function sendMessage(
   const history = await getChatMessages(user.id, data.chatId);
   if (!history)
     throw new Error("Choose a valid chat before sending a message.");
-  const request = await buildChatRequest(
+  const chatRequest = await buildChatRequest(
     user.id,
     user.username,
     user.aboutMe,
@@ -87,6 +94,20 @@ async function sendMessage(
     data,
     history,
   );
+  const imageDecision = await decideImageGeneration(
+    chatRequest.model,
+    data.prompt ?? "",
+    chatRequest.contextWindow,
+  );
+  if (imageDecision.generate) {
+    await sendGeneratedImage(ws, user, {
+      ...data,
+      positivePrompt: imageDecision.positive,
+      negativePrompt: imageDecision.negative,
+    });
+    return;
+  }
+  const request = chatRequest;
   const userEmbedding = await getMessageEmbedding(data.prompt ?? "");
   await saveMessage(
     user.id,

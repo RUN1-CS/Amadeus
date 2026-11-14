@@ -24,8 +24,6 @@ const {
   tsundere,
   thinking,
   streaming,
-  negativePrompt,
-  generateImage,
   selectedComfyModel,
   comfyModels,
   chats,
@@ -59,7 +57,6 @@ const attachments = ref<File[]>([]);
 const attachmentContents = ref<Record<string, string>>({});
 const expandedAttachments = ref<Record<string, boolean>>({});
 const hiddenAttachments = ref<Record<string, boolean>>({});
-const imagePrompt = ref("");
 
 // Composer actions are kept in one place so future tools can be added without
 // coupling their controls to the message composer markup.
@@ -304,19 +301,9 @@ function handleComposerKeydown(event: KeyboardEvent) {
 
 // Send the current draft and clear selected files only after a successful request.
 async function submitMessage() {
-  const sent = await sendMessage(
-    getAttachmentFileList(),
-    generateImage.value
-      ? {
-          positivePrompt: imagePrompt.value.trim(),
-          negativePrompt: negativePrompt.value,
-          model: selectedComfyModel.value,
-        }
-      : undefined,
-  );
+  const sent = await sendMessage(getAttachmentFileList());
   if (sent) {
     attachments.value = [];
-    if (generateImage.value) imagePrompt.value = "";
   }
 }
 
@@ -645,26 +632,6 @@ function renderMarkdown(content: string | null | undefined) {
               aria-label="Message your local assistant"
               @keydown="handleComposerKeydown"
             ></textarea>
-            <div class="mt-3 grid gap-3 border-t border-[var(--theme-border)] pt-3 sm:grid-cols-2">
-              <label class="block text-xs font-semibold text-[var(--theme-muted)]">
-                Positive image prompt
-                <textarea
-                  v-model="imagePrompt"
-                  rows="2"
-                  placeholder="Describe the image to generate"
-                  class="mt-1 w-full resize-y rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 text-xs text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
-                ></textarea>
-              </label>
-              <label class="block text-xs font-semibold text-[var(--theme-muted)]">
-                Negative image prompt
-                <textarea
-                  v-model="negativePrompt"
-                  rows="2"
-                  placeholder="Admin default applies when empty"
-                  class="mt-1 w-full resize-y rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 text-xs text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
-                ></textarea>
-              </label>
-            </div>
             <div
               class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--theme-border)] pt-3"
             >
@@ -723,10 +690,6 @@ function renderMarkdown(content: string | null | undefined) {
                   </select>
                 </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input v-model="generateImage" type="checkbox" class="accent-[var(--theme-accent)]" />
-                  Generate image
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
                   <input v-model="tsundere" type="checkbox" class="accent-[var(--theme-accent)]" />
                   Tsundere
                 </label>
@@ -742,10 +705,7 @@ function renderMarkdown(content: string | null | undefined) {
               <button
                 class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                 type="submit"
-                :disabled="
-                  (!(generateImage ? imagePrompt.trim() : draft.trim()) && !attachments.length) ||
-                  isGenerating
-                "
+                :disabled="(!draft.trim() && !attachments.length) || isGenerating"
                 aria-label="Send message"
               >
                 ↑

@@ -26,9 +26,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   const selectedModel = ref("");
   const comfyModels = ref<string[]>([]);
   const selectedComfyModel = ref("");
-  const negativePrompt = ref("");
   const defaultNegativePrompt = ref("");
-  const generateImage = ref(false);
   const draft = ref("");
   const isGenerating = ref(false);
   const tsundere = ref(false);
@@ -257,7 +255,6 @@ export const useOllamaStore = defineStore("ollama", () => {
       }>("/api/comfy/models");
       comfyModels.value = response.models;
       defaultNegativePrompt.value = response.defaultNegativePrompt;
-      if (!negativePrompt.value) negativePrompt.value = response.defaultNegativePrompt;
       if (!selectedComfyModel.value || !comfyModels.value.includes(selectedComfyModel.value)) {
         selectedComfyModel.value = comfyModels.value[0] ?? "";
       }
@@ -339,13 +336,10 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   // Send the current draft to the active chat over the authenticated socket.
-  async function sendMessage(
-    attachments: FileList | null = null,
-    imageOptions?: { positivePrompt: string; negativePrompt: string; model: string },
-  ) {
+  async function sendMessage(attachments: FileList | null = null) {
     const content = draft.value.trim();
     const hasAttachments = Boolean(attachments?.length);
-    const requestContent = imageOptions?.positivePrompt.trim() || content;
+    const requestContent = content;
     const chatId = activeChatId.value;
     if (
       (!requestContent && !hasAttachments) ||
@@ -378,13 +372,11 @@ export const useOllamaStore = defineStore("ollama", () => {
     isGenerating.value = true;
 
     socket.send(JSON.stringify({
-        type: imageOptions ? "generate_image" : "message",
+        type: "message",
         chatId,
         model: selectedModel.value,
         prompt: [requestContent, uploadedContent].filter(Boolean).join("\n\n"),
-        positivePrompt: imageOptions?.positivePrompt,
-        negativePrompt: imageOptions?.negativePrompt,
-        generativeModel: imageOptions?.model,
+        generativeModel: selectedComfyModel.value,
         tsundere: tsundere.value,
         thinking: thinking.value,
         stream: streaming.value,
@@ -439,9 +431,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     streaming,
     comfyModels,
     selectedComfyModel,
-    negativePrompt,
     defaultNegativePrompt,
-    generateImage,
     messageList,
     setModels,
     loadComfyModels,

@@ -12,42 +12,62 @@ type ComfyImage = {
 let cachedModels: string[] = [];
 let modelLoadError: string | undefined;
 
-async function comfyFetch(path: string, init?: RequestInit) {
-  return fetch(`${comfyUiBaseUrl.replace(/\/$/, "")}${path}`, init);
+interface ComfyObjectInfo {
+  CheckpointLoaderSimple?: {
+    input?: {
+      required?: {
+        ckpt_name?: [string[], ...unknown[]];
+      };
+    };
+  };
 }
 
-export async function loadComfyModels() {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+async function comfyFetch(path: string, init?: RequestInit) {
+  const baseUrl = comfyUiBaseUrl.replace(/\/+$/, "");
+  return fetch(`${baseUrl}${path}`, init);
+}
+
+export async function loadComfyModels(): Promise<string[]> {
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
       const response = await comfyFetch("/object_info/CheckpointLoaderSimple");
-      if (!response.ok)
+
+      if (!response.ok) {
         throw new Error(`ComfyUI returned HTTP ${response.status}.`);
-      const objectInfo = (await response.json()) as {
-        CheckpointLoaderSimple?: {
-          input?: { required?: { ckpt_name?: [string[]] } };
-        };
-      };
-      cachedModels =
-        objectInfo.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0] ??
-        [];
+      }
+
+      const objectInfo = (await response.json()) as ComfyObjectInfo;
+
+      const models =
+        objectInfo.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0];
+
+      if (!Array.isArray(models)) {
+        throw new Error("ComfyUI returned an unexpected checkpoint schema.");
+      }
+
+      cachedModels = models;
       modelLoadError = undefined;
+
       return cachedModels;
     } catch (error) {
       modelLoadError = getErrorMessage(error);
+
       if (attempt === 4) {
         console.error("Could not load ComfyUI models:", modelLoadError);
         break;
       }
+
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
+
   return cachedModels;
 }
 
 export function getComfyModels() {
   return {
     models: cachedModels,
-    negativePrompt: comfyUiNegativePrompt,
+    defaultNegativePrompt: comfyUiNegativePrompt,
     error: modelLoadError,
   };
 }
@@ -133,9 +153,9 @@ export async function generateImage(
       prompt: workflow(
         model,
         positivePrompt.trim(),
-        negativePrompt.trim() + negativePrompt.trim()
-          ? `, ${negativePrompt.trim()}`
-          : "",
+        [comfyUiNegativePrompt, negativePrompt.trim()]
+          .filter(Boolean)
+          .join(", "),
       ),
       client_id: randomUUID(),
     }),
