@@ -16,4 +16,6 @@ export type ClientMessage = {
   positivePrompt?: string;
   negativePrompt?: string;
   generativeModel?: string;
+  images?: string[];
+  attachments?: { name: string; kind?: "image" | "file" }[];
 };

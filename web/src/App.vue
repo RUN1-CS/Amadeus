@@ -42,9 +42,7 @@ const {
   logout,
 } = ollamaStore;
 
-const activeChat = computed(() =>
-  chats.value.find((chat: Chat) => chat.id === activeChatId.value),
-);
+const activeChat = computed(() => chats.value.find((chat: Chat) => chat.id === activeChatId.value));
 const chatScroll = ref<HTMLElement | null>(null);
 const shouldFollowLatest = ref(true);
 const renameChatId = ref<number | null>(null);
@@ -73,7 +71,7 @@ function getFileKey(file: { name: string; url?: string; content?: string; lastMo
 }
 
 async function loadImageIfNeeded(file: { name: string; url?: string; kind?: string }) {
-  if (file.kind !== "image" || !file.url) return;
+  if (file.kind !== "image" || !file.url || !file.url.startsWith("/")) return;
   const key = getFileKey(file);
   if (loadedImageUrls.value[key]) return;
   try {
@@ -94,10 +92,12 @@ async function handleFileSelection(event: Event) {
   if (!files.length) return;
 
   for (const file of files) {
-    // Read text files for preview
-    const text = await file.text();
     const key = getFileKey(file);
-    attachmentContents.value[key] = text;
+    if (file.type.startsWith("image/")) {
+      loadedImageUrls.value[key] = URL.createObjectURL(file);
+    } else {
+      attachmentContents.value[key] = await file.text();
+    }
     expandedAttachments.value[key] = false;
     hiddenAttachments.value[key] = false;
   }
@@ -649,7 +649,7 @@ function renderMarkdown(content: string | null | undefined) {
                   class="hidden"
                   type="file"
                   multiple
-                  accept=".txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
+                  accept="image/*,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
                   aria-label="Choose files to attach"
                   @change="handleFileSelection"
                 />

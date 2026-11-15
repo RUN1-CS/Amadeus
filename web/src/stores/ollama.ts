@@ -351,8 +351,13 @@ export const useOllamaStore = defineStore("ollama", () => {
       return false;
 
     let uploadedContent = "";
+    let uploadedImages: string[] = [];
+    let uploadedAttachments: { name: string; kind: "image" | "file" }[] = [];
     try {
-      uploadedContent = await uploadFiles(chatId, attachments);
+      const uploaded = await uploadFiles(chatId, attachments);
+      uploadedContent = uploaded.content;
+      uploadedImages = uploaded.images;
+      uploadedAttachments = uploaded.attachments;
     } catch {
       // Do not send a message that refers to files the server did not receive.
       return false;
@@ -366,6 +371,7 @@ export const useOllamaStore = defineStore("ollama", () => {
       attachments: Array.from(attachments || []).map((file) => ({
         name: file.name,
         url: URL.createObjectURL(file),
+        kind: file.type.startsWith("image/") ? "image" : "file",
       })),
     });
     draft.value = "";
@@ -376,6 +382,8 @@ export const useOllamaStore = defineStore("ollama", () => {
         chatId,
         model: selectedModel.value,
         prompt: [requestContent, uploadedContent].filter(Boolean).join("\n\n"),
+        images: uploadedImages,
+        attachments: uploadedAttachments,
         generativeModel: selectedComfyModel.value,
         tsundere: tsundere.value,
         thinking: thinking.value,
@@ -398,20 +406,29 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   // Upload text document files to the server for model ingestion.
   async function uploadFiles(chatId: number, files: FileList | null) {
-    if (!files?.length) return "";
+    if (!files?.length) return { content: "", images: [], attachments: [] };
 
     const formData = new FormData();
     for (const file of files) {
       formData.append("files", file);
     }
 
-    const response = await api.request<{ files: { name: string; content: string }[] }>(
+    const response = await api.request<{
+      files: { name: string; content?: string; kind: "image" | "file"; data?: string }[];
+    }>(
       `/api/chats/${chatId}/upload`,
       { method: "POST", body: formData },
     );
-    return response.files
-      .map((file) => `File: ${file.name}\n\`\`\`\n${file.content}\n\`\`\``)
-      .join("\n\n");
+    return {
+      content: response.files
+        .filter((file) => file.kind === "file")
+        .map((file) => `File: ${file.name}\n\`\`\`\n${file.content ?? ""}\n\`\`\``)
+        .join("\n\n"),
+      images: response.files
+        .filter((file) => file.kind === "image" && file.data)
+        .map((file) => file.data as string),
+      attachments: response.files.map(({ name, kind }) => ({ name, kind })),
+    };
   }
 
   return {

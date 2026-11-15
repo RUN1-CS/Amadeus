@@ -53,6 +53,8 @@ async function sendGeneratedImage(
       "user",
       data.prompt ?? positivePrompt,
       data.generativeModel,
+      undefined,
+      data.attachments,
     );
     await saveMessage(
       user.id,
@@ -116,6 +118,7 @@ async function sendMessage(
     data.prompt ?? "",
     request.model,
     userEmbedding,
+    data.attachments,
   );
   let assistantContent = "";
 

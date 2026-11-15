@@ -54,7 +54,7 @@ async function readJson(request: IncomingMessage) {
 
 const maxUploadBytes = 10 * 1024 * 1024;
 
-// Extract text files from the browser's multipart form without storing uploads on disk.
+// Extract uploaded files from the browser's multipart form without storing uploads on disk.
 async function readMultipartFiles(request: IncomingMessage) {
   const contentType = request.headers["content-type"] ?? "";
   const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
@@ -73,7 +73,7 @@ async function readMultipartFiles(request: IncomingMessage) {
 
   const body = Buffer.concat(chunks);
   const delimiter = Buffer.from(`--${boundary}`);
-  const files: { name: string; content: string }[] = [];
+  const files: { name: string; content?: string; kind: "image" | "file"; data?: string }[] = [];
   let position = body.indexOf(delimiter);
 
   while (position !== -1) {
@@ -87,10 +87,22 @@ async function readMultipartFiles(request: IncomingMessage) {
       const headers = part.subarray(0, headerEnd).toString("utf8");
       const filename = headers.match(/filename="([^"]*)"/i)?.[1];
       if (filename) {
-        const content = part
-          .subarray(headerEnd + 4, part.length - 2)
-          .toString("utf8");
-        files.push({ name: filename, content });
+        const contentType =
+          headers.match(/content-type:\s*([^\r\n;]+)/i)?.[1]?.toLowerCase() ?? "";
+        const bytes = part.subarray(headerEnd + 4, part.length - 2);
+        if (contentType.startsWith("image/")) {
+          files.push({
+            name: filename,
+            kind: "image",
+            data: bytes.toString("base64"),
+          });
+        } else {
+          files.push({
+            name: filename,
+            kind: "file",
+            content: bytes.toString("utf8"),
+          });
+        }
       }
     }
     position = nextPosition;

@@ -151,6 +151,7 @@ function fitMessages(
   systemPrompt: string,
   prompt: string,
   contextWindow: number,
+  images: string[] = [],
 ) {
   const budget = Math.max(256, contextWindow - reservedOutputTokens);
   const messages: Message[] = [{ role: "system", content: systemPrompt }];
@@ -165,7 +166,7 @@ function fitMessages(
     tokenCount += messageTokens;
   }
 
-  return [...messages, { role: "user", content: prompt }];
+  return [...messages, { role: "user", content: prompt, images }];
 }
 
 // Assemble the final chat payload, memory prompt, and tool config for Ollama.
@@ -209,7 +210,7 @@ export async function buildChatRequest(
     .join("\n\n");
   return {
     model,
-    messages: fitMessages(history, systemPrompt, prompt, contextWindow),
+    messages: fitMessages(history, systemPrompt, prompt, contextWindow, data.images),
     tools,
     think: data.thinking ?? false,
     stream: data.stream ?? false,
