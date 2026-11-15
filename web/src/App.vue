@@ -64,8 +64,10 @@ const composerActions = {
 
 // Key helper to uniquely identify files in state maps
 function getFileKey(file: { name: string; url?: string; content?: string; lastModified?: number }) {
+  if ("lastModified" in file && file.lastModified !== undefined) {
+    return `${file.name}:${file.lastModified}`;
+  }
   if ("url" in file && file.url) return `${file.name}:${file.url}`;
-  if ("lastModified" in file && file.lastModified) return `${file.name}:${file.lastModified}`;
   if ("content" in file && file.content) return `${file.name}:${file.content.length}`;
   return file.name;
 }

@@ -371,6 +371,7 @@ export const useOllamaStore = defineStore("ollama", () => {
       attachments: Array.from(attachments || []).map((file) => ({
         name: file.name,
         url: URL.createObjectURL(file),
+        lastModified: file.lastModified,
         kind: file.type.startsWith("image/") ? "image" : "file",
       })),
     });
