@@ -22,6 +22,12 @@ interface ComfyObjectInfo {
   };
 }
 
+function getCheckpointNames(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((model): model is string => typeof model === "string")
+    : [];
+}
+
 async function comfyFetch(path: string, init?: RequestInit) {
   const baseUrl = comfyUiBaseUrl.replace(/\/+$/, "");
   return fetch(`${baseUrl}${path}`, init);
@@ -30,22 +36,32 @@ async function comfyFetch(path: string, init?: RequestInit) {
 export async function loadComfyModels(): Promise<string[]> {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const response = await comfyFetch("/object_info/CheckpointLoaderSimple");
+      const [objectInfoResponse, modelsResponse] = await Promise.all([
+        comfyFetch("/object_info/CheckpointLoaderSimple"),
+        comfyFetch("/models/checkpoints"),
+      ]);
 
-      if (!response.ok) {
-        throw new Error(`ComfyUI returned HTTP ${response.status}.`);
+      const models = new Set<string>();
+
+      if (objectInfoResponse.ok) {
+        const objectInfo = (await objectInfoResponse.json()) as ComfyObjectInfo;
+        const nodeModels =
+          objectInfo.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0];
+        getCheckpointNames(nodeModels).forEach((model) => models.add(model));
       }
 
-      const objectInfo = (await response.json()) as ComfyObjectInfo;
-
-      const models =
-        objectInfo.CheckpointLoaderSimple?.input?.required?.ckpt_name?.[0];
-
-      if (!Array.isArray(models)) {
-        throw new Error("ComfyUI returned an unexpected checkpoint schema.");
+      if (modelsResponse.ok) {
+        const listedModels = getCheckpointNames(await modelsResponse.json());
+        listedModels.forEach((model) => models.add(model));
       }
 
-      cachedModels = models;
+      if (models.size === 0) {
+        throw new Error(
+          `ComfyUI returned no checkpoints (object info HTTP ${objectInfoResponse.status}, models HTTP ${modelsResponse.status}).`,
+        );
+      }
+
+      cachedModels = [...models];
       modelLoadError = undefined;
 
       return cachedModels;
