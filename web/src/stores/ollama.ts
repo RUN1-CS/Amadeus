@@ -352,7 +352,7 @@ export const useOllamaStore = defineStore("ollama", () => {
 
     let uploadedContent = "";
     let uploadedImages: string[] = [];
-    let uploadedAttachments: { name: string; kind: "image" | "file" }[] = [];
+    let uploadedAttachments: { name: string; kind: "image" | "pdf" | "file" }[] = [];
     try {
       const uploaded = await uploadFiles(chatId, attachments);
       uploadedContent = uploaded.content;
@@ -368,11 +368,17 @@ export const useOllamaStore = defineStore("ollama", () => {
       role: "user",
       content: requestContent,
       time: "now",
-      attachments: Array.from(attachments || []).map((file) => ({
+      attachments: Array.from(attachments || []).map((file, index) => ({
         name: file.name,
         url: URL.createObjectURL(file),
         lastModified: file.lastModified,
-        kind: file.type.startsWith("image/") ? "image" : "file",
+        kind:
+          uploadedAttachments[index]?.kind ??
+          (file.type.startsWith("image/")
+            ? "image"
+            : file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+              ? "pdf"
+              : "file"),
       })),
     });
     draft.value = "";
@@ -415,14 +421,19 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
 
     const response = await api.request<{
-      files: { name: string; content?: string; kind: "image" | "file"; data?: string }[];
+      files: {
+        name: string;
+        content?: string;
+        kind: "image" | "pdf" | "file";
+        data?: string;
+      }[];
     }>(
       `/api/chats/${chatId}/upload`,
       { method: "POST", body: formData },
     );
     return {
       content: response.files
-        .filter((file) => file.kind === "file")
+        .filter((file) => file.kind === "file" || file.kind === "pdf")
         .map((file) => `File: ${file.name}\n\`\`\`\n${file.content ?? ""}\n\`\`\``)
         .join("\n\n"),
       images: response.files

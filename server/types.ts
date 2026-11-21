@@ -42,7 +42,7 @@ export type SavedMessage = {
 export type AttachmentItem = {
   name: string;
   url?: string;
-  kind?: "image" | "file";
+  kind?: "image" | "pdf" | "file";
 };
 export type SimilarMessage = Pick<SavedMessage, "role" | "content"> & {
   similarity: number;

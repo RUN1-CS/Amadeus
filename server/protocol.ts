@@ -17,5 +17,5 @@ export type ClientMessage = {
   negativePrompt?: string;
   generativeModel?: string;
   images?: string[];
-  attachments?: { name: string; kind?: "image" | "file" }[];
+  attachments?: { name: string; kind?: "image" | "pdf" | "file" }[];
 };

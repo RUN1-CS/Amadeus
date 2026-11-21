@@ -4,6 +4,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { PDFParse } from "pdf-parse";
 
 import {
   createChat,
@@ -53,6 +54,20 @@ async function readJson(request: IncomingMessage) {
 }
 
 const maxUploadBytes = 10 * 1024 * 1024;
+const maxExtractedPdfChars = 50_000;
+
+async function extractPdfText(data: Buffer) {
+  const parser = new PDFParse({ data });
+  try {
+    const result = await parser.getText();
+    const text = result.text.trim();
+    if (!text) return "[No extractable text found in this PDF.]";
+    if (text.length <= maxExtractedPdfChars) return text;
+    return `${text.slice(0, maxExtractedPdfChars)}\n[PDF text truncated.]`;
+  } finally {
+    await parser.destroy();
+  }
+}
 
 // Extract uploaded files from the browser's multipart form without storing uploads on disk.
 async function readMultipartFiles(request: IncomingMessage) {
@@ -73,7 +88,12 @@ async function readMultipartFiles(request: IncomingMessage) {
 
   const body = Buffer.concat(chunks);
   const delimiter = Buffer.from(`--${boundary}`);
-  const files: { name: string; content?: string; kind: "image" | "file"; data?: string }[] = [];
+  const files: {
+    name: string;
+    content?: string;
+    kind: "image" | "pdf" | "file";
+    data?: string;
+  }[] = [];
   let position = body.indexOf(delimiter);
 
   while (position !== -1) {
@@ -90,7 +110,16 @@ async function readMultipartFiles(request: IncomingMessage) {
         const contentType =
           headers.match(/content-type:\s*([^\r\n;]+)/i)?.[1]?.toLowerCase() ?? "";
         const bytes = part.subarray(headerEnd + 4, part.length - 2);
-        if (contentType.startsWith("image/")) {
+        if (
+          contentType === "application/pdf" ||
+          filename.toLowerCase().endsWith(".pdf")
+        ) {
+          files.push({
+            name: filename,
+            kind: "pdf",
+            content: await extractPdfText(bytes),
+          });
+        } else if (contentType.startsWith("image/")) {
           files.push({
             name: filename,
             kind: "image",

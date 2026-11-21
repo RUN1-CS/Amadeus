@@ -72,16 +72,20 @@ function getFileKey(file: { name: string; url?: string; content?: string; lastMo
   return file.name;
 }
 
+function isPdfFile(file: Pick<File, "name" | "type">) {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+}
+
 async function loadImageIfNeeded(file: { name: string; url?: string; kind?: string }) {
   if (file.kind !== "image" || !file.url || !file.url.startsWith("/")) return;
   const key = getFileKey(file);
-  if (loadedImageUrls.value[key]) return;
+  if (loadedAttachmentUrls.value[key]) return;
   try {
     const response = await fetch(`http://${window.location.hostname}:8080${file.url}`, {
       headers: { Authorization: `Bearer ${ollamaStore.token}` },
     });
     if (!response.ok) throw new Error(`Failed to fetch generated image: ${response.statusText}`);
-    loadedImageUrls.value[key] = URL.createObjectURL(await response.blob());
+    loadedAttachmentUrls.value[key] = URL.createObjectURL(await response.blob());
   } catch (error) {
     console.error("Failed to fetch generated image:", error);
   }
@@ -96,7 +100,9 @@ async function handleFileSelection(event: Event) {
   for (const file of files) {
     const key = getFileKey(file);
     if (file.type.startsWith("image/")) {
-      loadedImageUrls.value[key] = URL.createObjectURL(file);
+      loadedAttachmentUrls.value[key] = URL.createObjectURL(file);
+  } else if (isPdfFile(file)) {
+      loadedAttachmentUrls.value[key] = URL.createObjectURL(file);
     } else {
       attachmentContents.value[key] = await file.text();
     }
@@ -149,7 +155,7 @@ function getPreviewText(
   return lines;
 }
 
-const loadedImageUrls = ref<Record<string, string>>({});
+const loadedAttachmentUrls = ref<Record<string, string>>({});
 
 watch(
   messageList,
@@ -548,10 +554,20 @@ function renderMarkdown(content: string | null | undefined) {
 
                     <img
                       v-if="file.kind === 'image'"
-                      :src="loadedImageUrls[getFileKey(file)]"
+                      :src="loadedAttachmentUrls[getFileKey(file)]"
                       :alt="file.name"
                       class="mt-1.5 max-h-[32rem] w-full rounded bg-[var(--theme-sidebar)] object-contain"
                     />
+                    <iframe
+                      v-else-if="
+                        file.kind === 'pdf' &&
+                        !hiddenAttachments[getFileKey(file)] &&
+                        (loadedAttachmentUrls[getFileKey(file)] || file.url)
+                      "
+                      :src="loadedAttachmentUrls[getFileKey(file)] || file.url"
+                      :title="file.name"
+                      class="mt-1.5 h-[32rem] w-full rounded bg-[var(--theme-sidebar)]"
+                    ></iframe>
                     <!-- Message List Preview Block -->
                     <div
                       v-else-if="!hiddenAttachments[getFileKey(file)]"
@@ -651,7 +667,7 @@ function renderMarkdown(content: string | null | undefined) {
                   class="hidden"
                   type="file"
                   multiple
-                  accept="image/*,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
+                  accept="image/*,application/pdf,.pdf,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
                   aria-label="Choose files to attach"
                   @change="handleFileSelection"
                 />
@@ -754,9 +770,21 @@ function renderMarkdown(content: string | null | undefined) {
                   </div>
                 </div>
 
+                <iframe
+                  v-if="
+                    isPdfFile(file) &&
+                    !hiddenAttachments[getFileKey(file)]
+                  "
+                  :src="loadedAttachmentUrls[getFileKey(file)]"
+                  :title="file.name"
+                  class="mt-1.5 h-80 w-full rounded bg-[var(--theme-sidebar)]"
+                ></iframe>
                 <!-- Interactive Code / Text Preview Block -->
                 <div
-                  v-if="!hiddenAttachments[getFileKey(file)]"
+                  v-else-if="
+                    !isPdfFile(file) &&
+                    !hiddenAttachments[getFileKey(file)]
+                  "
                   class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
                   @click="toggleExpand(file)"
                 >

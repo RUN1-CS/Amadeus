@@ -26,7 +26,7 @@ export interface AttachmentItem {
   url?: string;
   content?: string;
   lastModified?: number;
-  kind?: "image" | "file";
+  kind?: "image" | "pdf" | "file";
 }
 
 export interface ChatMessage {
