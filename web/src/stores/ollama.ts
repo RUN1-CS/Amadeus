@@ -1,5 +1,5 @@
 // Pinia store for auth, chat state, socket streaming, and model selection.
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { defineStore } from "pinia";
 
 import { createApiClient } from "@/services/api";
@@ -13,6 +13,8 @@ import type {
 } from "../types/chat";
 
 const FILE_BLOCK = /(?:^|\n\n)File: ([^\n]+)\n```\n([\s\S]*?)\n```(?=\n\nFile: |$)/g;
+const selectedModelStorageKey = "amadeus_selected_model";
+const selectedComfyModelStorageKey = "amadeus_selected_comfy_model";
 
 export const useOllamaStore = defineStore("ollama", () => {
   const user = ref<User | null>(null);
@@ -23,9 +25,9 @@ export const useOllamaStore = defineStore("ollama", () => {
   const authLoading = ref(false);
   const authError = ref("");
   const models = ref<string[]>([]);
-  const selectedModel = ref("");
+  const selectedModel = ref(localStorage.getItem(selectedModelStorageKey) ?? "");
   const comfyModels = ref<string[]>([]);
-  const selectedComfyModel = ref("");
+  const selectedComfyModel = ref(localStorage.getItem(selectedComfyModelStorageKey) ?? "");
   const defaultNegativePrompt = ref("");
   const draft = ref("");
   const isGenerating = ref(false);
@@ -36,6 +38,13 @@ export const useOllamaStore = defineStore("ollama", () => {
   const api = createApiClient(() => token.value);
 
   let socket: WebSocket | null = null;
+
+  watch(selectedModel, (model) => {
+    localStorage.setItem(selectedModelStorageKey, model);
+  });
+  watch(selectedComfyModel, (model) => {
+    localStorage.setItem(selectedComfyModelStorageKey, model);
+  });
 
   // Save the auth token and user object after a successful login or signup.
   function storeSession(sessionToken: string, sessionUser: User) {
@@ -244,7 +253,6 @@ export const useOllamaStore = defineStore("ollama", () => {
     if (!selectedModel.value || !models.value.includes(selectedModel.value)) {
       selectedModel.value = models.value[0] ?? "";
     }
-
   }
 
   async function loadComfyModels() {
@@ -384,7 +392,8 @@ export const useOllamaStore = defineStore("ollama", () => {
     draft.value = "";
     isGenerating.value = true;
 
-    socket.send(JSON.stringify({
+    socket.send(
+      JSON.stringify({
         type: "message",
         chatId,
         model: selectedModel.value,
@@ -395,7 +404,8 @@ export const useOllamaStore = defineStore("ollama", () => {
         tsundere: tsundere.value,
         thinking: thinking.value,
         stream: streaming.value,
-      }));
+      }),
+    );
 
     return true;
   }
@@ -427,10 +437,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         kind: "image" | "pdf" | "file";
         data?: string;
       }[];
-    }>(
-      `/api/chats/${chatId}/upload`,
-      { method: "POST", body: formData },
-    );
+    }>(`/api/chats/${chatId}/upload`, { method: "POST", body: formData });
     return {
       content: response.files
         .filter((file) => file.kind === "file" || file.kind === "pdf")
