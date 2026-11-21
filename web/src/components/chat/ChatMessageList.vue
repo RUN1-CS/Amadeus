@@ -89,13 +89,15 @@ function renderMarkdown(content: string | null | undefined) {
                   class="text-[10px] uppercase text-[var(--theme-muted)] hover:underline"
                   @click="toggleHideAttachment(file)"
                 >
-                  {{ hiddenAttachments[getFileKey(file)] ? "Unhide attachment" : "Hide attachment" }}
+                  {{
+                    hiddenAttachments[getFileKey(file)] ? "Unhide attachment" : "Hide attachment"
+                  }}
                 </button>
               </div>
             </div>
 
             <img
-              v-if="file.kind === 'image'"
+              v-if="file.kind === 'image' && !hiddenAttachments[getFileKey(file)]"
               :src="loadedAttachmentUrls[getFileKey(file)]"
               :alt="file.name"
               class="mt-1.5 max-h-[32rem] w-full rounded bg-[var(--theme-sidebar)] object-contain"
@@ -118,11 +120,13 @@ function renderMarkdown(content: string | null | undefined) {
               <pre
                 v-if="expandedAttachments[getFileKey(file)]"
                 class="max-h-96 overflow-y-auto whitespace-pre-wrap break-all"
-              >{{ getDisplayContent(file) || "Loading content..." }}</pre>
+                >{{ getDisplayContent(file) || "Loading content..." }}</pre
+              >
               <pre
                 v-else
                 class="max-h-24 overflow-hidden whitespace-pre-wrap break-all opacity-80"
-              >{{ getPreviewText(file) }}</pre>
+                >{{ getPreviewText(file) }}</pre
+              >
             </div>
           </div>
         </div>
@@ -136,7 +140,8 @@ function renderMarkdown(content: string | null | undefined) {
     <div v-if="isGenerating" class="flex items-center gap-3">
       <span
         class="grid size-8 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-xs text-[#fffaf4]"
-      >O</span>
+        >O</span
+      >
       <span
         class="flex items-center gap-2 rounded-full bg-[var(--theme-sidebar)] px-3 py-2 text-xs text-[var(--theme-muted)]"
       >

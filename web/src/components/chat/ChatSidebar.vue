@@ -185,8 +185,8 @@ async function confirmDelete() {
     >
       <h2 class="text-lg font-bold">Delete chat?</h2>
       <p class="mt-2 text-sm leading-6 text-[var(--theme-muted)]">
-        Type <strong class="text-[#4d4841]">{{ deleteChatName }}</strong> to permanently delete
-        this conversation.
+        Type <strong class="text-[#4d4841]">{{ deleteChatName }}</strong> to permanently delete this
+        conversation.
       </p>
       <input
         v-model="deleteConfirmation"

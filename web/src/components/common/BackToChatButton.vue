@@ -5,10 +5,7 @@ const router = useRouter();
 </script>
 
 <template>
-  <button
-    class="mb-8 text-sm text-[var(--theme-accent)] hover:underline"
-    @click="router.push('/')"
-  >
+  <button class="mb-8 text-sm text-[var(--theme-accent)] hover:underline" @click="router.push('/')">
     ← Back to chat
   </button>
 </template>

@@ -121,7 +121,6 @@ async function submitMessage() {
     attachments.value = [];
   }
 }
-
 </script>
 <template>
   <RouterView v-if="route.path !== '/'" />
@@ -181,7 +180,11 @@ async function submitMessage() {
       </header>
 
       <div class="flex min-h-0 flex-1 flex-col px-5 py-7 sm:px-[6.5%]">
-        <div ref="chatScroll" class="min-h-0 flex-1 overflow-y-auto pr-1" @scroll="handleChatScroll">
+        <div
+          ref="chatScroll"
+          class="min-h-0 flex-1 overflow-y-auto pr-1"
+          @scroll="handleChatScroll"
+        >
           <ChatMessageList
             :messages="messageList"
             :is-generating="isGenerating"
@@ -382,6 +385,5 @@ async function submitMessage() {
         </div>
       </div>
     </section>
-
   </main>
 </template>
