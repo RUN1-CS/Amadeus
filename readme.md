@@ -73,6 +73,16 @@ The server connects to ComfyUI through `COMFYUI_BASE_URL` (the Compose default i
 `http://comfyui:8188`). `COMFYUI_NEGATIVE_PROMPT` provides the administrator's
 negative prompt for administration purposes; the user can still add some.
 
+Set `SERVER_BIND_ADDRESS` in `.env` to control which host interfaces publish the
+server port. Use `0.0.0.0` (the default) to allow LAN connections, or
+`127.0.0.1` to make the port accessible only from the host machine. Keep
+`SERVER_PORT` to choose the host port. Recreate the service after changing the
+setting with `docker compose up -d`.
+This controls direct access to the server's published port. `WEB_PORT` is a
+separate port and the web service proxies `/api` requests to the server; bind
+the web port to localhost as well if you also want to prevent LAN access to the
+API through that proxy.
+
 ## Server API
 
 See [API.md](./API.md) for the HTTP and WebSocket endpoint reference, including

@@ -30,7 +30,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "${SERVER_BIND_ADDRESS:-0.0.0.0}:${SERVER_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy

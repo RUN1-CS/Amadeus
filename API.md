@@ -2,6 +2,9 @@
 
 This document describes the HTTP and WebSocket APIs exposed by the Amadeus
 server. The default server port is `8080` (configured with `PORT`).
+With Docker Compose, `SERVER_PORT` selects the host port and
+`SERVER_BIND_ADDRESS` selects the host interface: `0.0.0.0` exposes the server
+port to the LAN, while `127.0.0.1` restricts it to the host machine.
 
 Base HTTP URL:
 
