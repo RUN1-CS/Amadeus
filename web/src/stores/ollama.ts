@@ -13,15 +13,44 @@ import type {
 } from "../types/chat";
 
 const FILE_BLOCK = /(?:^|\n\n)File: ([^\n]+)\n```\n([\s\S]*?)\n```(?=\n\nFile: |$)/g;
+const tokenStorageKey = "amadeus_token";
+const sidebarStorageKey = "amadeus_sidebar";
 const selectedModelStorageKey = "amadeus_selected_model";
 const selectedComfyModelStorageKey = "amadeus_selected_comfy_model";
 
+// Keep below the server's WebSocket maxPayload (25 MiB) so a big image upload
+// shows an error instead of silently dropping the connection.
+const maxSocketPayloadChars = 24 * 1024 * 1024;
+const maxReconnectDelayMs = 30_000;
+
+// Created once: building a formatter per message is slow for long chats.
+const timeFormat = new Intl.DateTimeFormat([], {
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+type UploadKind = "image" | "pdf" | "file";
+type UploadResult = {
+  content: string;
+  images: string[];
+  attachments: { name: string; kind: UploadKind }[];
+};
+
+// WebSocket endpoint: VITE_WS_URL wins, otherwise match the page's protocol (wss on https).
+function socketUrl() {
+  const configured = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
+    ?.VITE_WS_URL;
+  if (configured) return configured;
+  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${scheme}://${window.location.hostname}:8080`;
+}
+
 export const useOllamaStore = defineStore("ollama", () => {
   const user = ref<User | null>(null);
-  const token = ref(localStorage.getItem("amadeus_token"));
+  const token = ref(localStorage.getItem(tokenStorageKey));
   const chats = ref<Chat[]>([]);
   const activeChatId = ref<number | null>(null);
-  const sidebarVisible = ref(localStorage.getItem("amadeus_sidebar") !== "hidden");
+  const sidebarVisible = ref(localStorage.getItem(sidebarStorageKey) !== "hidden");
   const authLoading = ref(false);
   const authError = ref("");
   const models = ref<string[]>([]);
@@ -38,6 +67,21 @@ export const useOllamaStore = defineStore("ollama", () => {
   const api = createApiClient(() => token.value);
 
   let socket: WebSocket | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  let reconnectAttempts = 0;
+
+  // Chat that the in-flight reply belongs to, so streamed text never lands in another chat.
+  let generatingChatId: number | null = null;
+  // Incremented per chat switch so a slow response can't overwrite a newer one.
+  let selectRequestId = 0;
+
+  // Streamed chunks are buffered and applied once per frame instead of once per token.
+  let pendingContent = "";
+  let pendingThinking = "";
+  let flushHandle: number | null = null;
+
+  // Blob URLs created for outgoing attachments; revoked when the message list is replaced.
+  const objectUrls = new Set<string>();
 
   watch(selectedModel, (model) => {
     localStorage.setItem(selectedModelStorageKey, model);
@@ -46,25 +90,55 @@ export const useOllamaStore = defineStore("ollama", () => {
     localStorage.setItem(selectedComfyModelStorageKey, model);
   });
 
+  function revokeObjectUrls() {
+    for (const url of objectUrls) URL.revokeObjectURL(url);
+    objectUrls.clear();
+  }
+
+  function isSocketOpen() {
+    return socket !== null && socket.readyState === WebSocket.OPEN;
+  }
+
   // Save the auth token and user object after a successful login or signup.
   function storeSession(sessionToken: string, sessionUser: User) {
     token.value = sessionToken;
     user.value = sessionUser;
-    localStorage.setItem("amadeus_token", sessionToken);
+    localStorage.setItem(tokenStorageKey, sessionToken);
+  }
+
+  // Retry a dropped connection with exponential backoff while a session exists.
+  function scheduleReconnect() {
+    if (!token.value) return;
+    const delay = Math.min(maxReconnectDelayMs, 1_000 * 2 ** reconnectAttempts);
+    reconnectAttempts += 1;
+    reconnectTimer = setTimeout(connectSocket, delay);
   }
 
   // Open the WebSocket and authenticate it when the browser has a valid token.
   function connectSocket() {
     if (!token.value || socket) return;
-    socket = new WebSocket(`ws://${window.location.hostname}:8080`);
-    socket.addEventListener("open", () => {
-      socket?.send(JSON.stringify({ type: "authenticate", token: token.value }));
+    clearTimeout(reconnectTimer);
+
+    const ws = new WebSocket(socketUrl());
+    socket = ws;
+    ws.addEventListener("open", () => {
+      reconnectAttempts = 0;
+      ws.send(JSON.stringify({ type: "authenticate", token: token.value }));
     });
-    socket.addEventListener("message", (event) => {
+    ws.addEventListener("message", (event) => {
       if (typeof event.data === "string") receiveMessage(event.data);
     });
-    socket.addEventListener("close", () => {
+    ws.addEventListener("close", () => {
+      // A socket that was replaced or closed on purpose (logout) must not reconnect.
+      if (socket !== ws) return;
       socket = null;
+      if (isGenerating.value) {
+        flushPending();
+        isGenerating.value = false;
+        generatingChatId = null;
+        addAssistantMessage("Error: Connection lost. Reconnecting…");
+      }
+      scheduleReconnect();
     });
   }
 
@@ -73,18 +147,21 @@ export const useOllamaStore = defineStore("ollama", () => {
     if (!token.value || user.value) return;
     authLoading.value = true;
     try {
-      const response = await api.request<{ user: User }>("/api/auth/me");
-      user.value = response.user;
-      connectSocket();
-      await loadComfyModels();
       try {
-        await loadChats();
+        const response = await api.request<{ user: User }>("/api/auth/me");
+        user.value = response.user;
+      } catch {
+        logout();
+        return;
+      }
+      connectSocket();
+      try {
+        // Independent requests: run them together.
+        await Promise.all([loadComfyModels(), loadChats()]);
       } catch (error) {
+        // The session is valid here, so a failed chat load shouldn't sign the user out.
         console.error("Failed to load chats", error);
       }
-      await loadChats();
-    } catch {
-      logout();
     } finally {
       authLoading.value = false;
     }
@@ -105,8 +182,7 @@ export const useOllamaStore = defineStore("ollama", () => {
       });
       storeSession(response.token, response.user);
       connectSocket();
-      await loadComfyModels();
-      await loadChats();
+      await Promise.all([loadComfyModels(), loadChats()]);
     } catch (error) {
       authError.value = error instanceof Error ? error.message : "Authentication failed.";
       throw error;
@@ -148,14 +224,27 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   // Clear the in-memory session and close the socket when the user signs out.
   function logout() {
-    socket?.close();
-    socket = null;
+    clearTimeout(reconnectTimer);
+    reconnectAttempts = 0;
+    const closing = socket;
+    socket = null; // detach first so the close handler doesn't try to reconnect
+    closing?.close();
+
+    if (flushHandle !== null) cancelAnimationFrame(flushHandle);
+    flushHandle = null;
+    pendingContent = "";
+    pendingThinking = "";
+    generatingChatId = null;
+    isGenerating.value = false;
+
+    selectRequestId += 1;
+    revokeObjectUrls();
     user.value = null;
     token.value = null;
     chats.value = [];
     activeChatId.value = null;
     messageList.value = [];
-    localStorage.removeItem("amadeus_token");
+    localStorage.removeItem(tokenStorageKey);
   }
 
   // Load the user's saved conversations and select the first one if present.
@@ -181,6 +270,8 @@ export const useOllamaStore = defineStore("ollama", () => {
       title: "New conversation",
       createdAt: new Date().toISOString(),
     };
+    selectRequestId += 1; // cancel any chat switch still in flight
+    revokeObjectUrls();
     chats.value = [chat, ...chats.value];
     activeChatId.value = chat.id;
     messageList.value = [];
@@ -211,14 +302,19 @@ export const useOllamaStore = defineStore("ollama", () => {
   // Persist the sidebar state and reflect it in the UI.
   function setSidebarVisible(visible: boolean) {
     sidebarVisible.value = visible;
-    localStorage.setItem("amadeus_sidebar", visible ? "visible" : "hidden");
+    localStorage.setItem(sidebarStorageKey, visible ? "visible" : "hidden");
   }
 
   // Fetch the message history for a chat and render it in the main window.
   async function selectChat(chatId: number) {
+    const requestId = ++selectRequestId;
     const response = await api.request<{ messages: SavedMessage[] }>(
       `/api/chats/${chatId}/messages`,
     );
+    // The user picked another chat while this one was loading; drop the stale result.
+    if (requestId !== selectRequestId) return;
+
+    revokeObjectUrls();
     activeChatId.value = chatId;
     messageList.value = response.messages.map((message) => {
       const raw = message.content ?? "";
@@ -234,10 +330,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         role: message.role,
         content: parsed ? parsed.text : raw,
         model: message.model,
-        time: new Date(message.createdAt).toLocaleTimeString([], {
-          hour: "numeric",
-          minute: "2-digit",
-        }),
+        time: timeFormat.format(new Date(message.createdAt)),
         attachments: extracted.length ? extracted : saved,
       };
     });
@@ -271,34 +364,72 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
+  // Buffer a streamed chunk and apply it on the next animation frame.
+  function queueChunk(content: string, thinkingContent: string) {
+    pendingContent += content;
+    pendingThinking += thinkingContent;
+    if (flushHandle === null) flushHandle = requestAnimationFrame(flushPending);
+  }
+
+  // Apply any buffered chunks now. Called before every non-chunk event to keep ordering.
+  function flushPending() {
+    if (flushHandle !== null) {
+      cancelAnimationFrame(flushHandle);
+      flushHandle = null;
+    }
+    if (!pendingContent && !pendingThinking) return;
+    const content = pendingContent;
+    const thinkingContent = pendingThinking;
+    pendingContent = "";
+    pendingThinking = "";
+    addAssistantMessage(content, thinkingContent);
+  }
+
+  // True when a streamed reply belongs to a chat the user has navigated away from.
+  function isForOtherChat() {
+    return generatingChatId !== null && generatingChatId !== activeChatId.value;
+  }
+
   // Handle socket events like model updates, streamed content, and errors.
   function receiveMessage(rawMessage: string) {
+    let message: ServerMessage;
     try {
-      const message = JSON.parse(rawMessage) as ServerMessage;
-      if (message.type === "models" && Array.isArray(message.models)) {
-        setModels(message.models);
-      } else if (message.type === "authenticated") {
-        socket?.send(JSON.stringify({ type: "fetch_models" }));
-      } else if (message.type === "message") {
-        const content = message.message.content ?? "";
-        addAssistantMessage(
-          content,
-          message.message.thinking ?? "",
-          message.full ?? false,
-          message.message.attachments,
-        );
-      } else if (message.type === "chat_title") {
-        chats.value = chats.value.map((chat) =>
-          chat.id === message.chat.id ? message.chat : chat,
-        );
-      } else if (message.type === "error") {
-        isGenerating.value = false;
-        addAssistantMessage(`Error: ${message.error}`);
-      } else if (message.type === "done") {
-        isGenerating.value = false;
-      }
+      message = JSON.parse(rawMessage) as ServerMessage;
     } catch {
       // Ignore non-JSON socket messages so the chat remains available.
+      return;
+    }
+
+    // Plain streamed chunks take the cheap buffered path.
+    if (message.type === "message" && !message.full && !message.message.attachments?.length) {
+      if (isForOtherChat()) return;
+      queueChunk(message.message.content ?? "", message.message.thinking ?? "");
+      return;
+    }
+
+    flushPending();
+
+    if (message.type === "models" && Array.isArray(message.models)) {
+      setModels(message.models);
+    } else if (message.type === "authenticated") {
+      socket?.send(JSON.stringify({ type: "fetch_models" }));
+    } else if (message.type === "message") {
+      if (isForOtherChat()) return;
+      addAssistantMessage(
+        message.message.content ?? "",
+        message.message.thinking ?? "",
+        message.full ?? false,
+        message.message.attachments,
+      );
+    } else if (message.type === "chat_title") {
+      chats.value = chats.value.map((chat) => (chat.id === message.chat.id ? message.chat : chat));
+    } else if (message.type === "error") {
+      isGenerating.value = false;
+      generatingChatId = null;
+      addAssistantMessage(`Error: ${message.error}`);
+    } else if (message.type === "done") {
+      isGenerating.value = false;
+      generatingChatId = null;
     }
   }
 
@@ -312,14 +443,14 @@ export const useOllamaStore = defineStore("ollama", () => {
     const lastMessage = messageList.value.at(-1);
 
     if (lastMessage?.role === "assistant" && isGenerating.value) {
-      lastMessage.content += content;
-      lastMessage.thinking = (lastMessage.thinking ?? "") + thinkingContent;
-      if (attachments.length) lastMessage.attachments = attachments;
-
       if (isFull) {
         lastMessage.content = content;
         lastMessage.thinking = thinkingContent;
+      } else {
+        lastMessage.content += content;
+        lastMessage.thinking = (lastMessage.thinking ?? "") + thinkingContent;
       }
+      if (attachments.length) lastMessage.attachments = attachments;
     } else {
       messageList.value.push({
         id: Date.now(),
@@ -340,72 +471,90 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   // Empty the currently visible message list.
   function clearMessages() {
+    revokeObjectUrls();
     messageList.value = [];
+  }
+
+  // Show a local error in the conversation without touching the generating state.
+  function showError(error: unknown, fallback: string) {
+    addAssistantMessage(`Error: ${error instanceof Error ? error.message : fallback}`);
   }
 
   // Send the current draft to the active chat over the authenticated socket.
   async function sendMessage(attachments: FileList | null = null) {
     const content = draft.value.trim();
-    const hasAttachments = Boolean(attachments?.length);
-    const requestContent = content;
+    const files = attachments?.length ? attachments : null;
     const chatId = activeChatId.value;
-    if (
-      (!requestContent && !hasAttachments) ||
-      !chatId ||
-      isGenerating.value ||
-      !socket ||
-      socket.readyState !== WebSocket.OPEN
-    )
-      return false;
+    if ((!content && !files) || !chatId || isGenerating.value || !isSocketOpen()) return false;
 
-    let uploadedContent = "";
-    let uploadedImages: string[] = [];
-    let uploadedAttachments: { name: string; kind: "image" | "pdf" | "file" }[] = [];
+    // Block double submits while files are uploading, not just while the model replies.
+    isGenerating.value = true;
+
+    let uploaded: UploadResult;
     try {
-      const uploaded = await uploadFiles(chatId, attachments);
-      uploadedContent = uploaded.content;
-      uploadedImages = uploaded.images;
-      uploadedAttachments = uploaded.attachments;
-    } catch {
+      uploaded = await uploadFiles(chatId, files);
+    } catch (error) {
       // Do not send a message that refers to files the server did not receive.
+      isGenerating.value = false;
+      showError(error, "Upload failed.");
+      return false;
+    }
+
+    const payload = JSON.stringify({
+      type: "message",
+      chatId,
+      model: selectedModel.value,
+      prompt: [content, uploaded.content].filter(Boolean).join("\n\n"),
+      images: uploaded.images,
+      attachments: uploaded.attachments,
+      generativeModel: selectedComfyModel.value,
+      tsundere: tsundere.value,
+      thinking: thinking.value,
+      stream: streaming.value,
+    });
+
+    if (payload.length > maxSocketPayloadChars) {
+      isGenerating.value = false;
+      showError(
+        null,
+        "Those attachments are too large to send together. Try fewer or smaller images.",
+      );
+      return false;
+    }
+
+    // The socket may have dropped while the upload was running.
+    const activeSocket = socket;
+    if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
+      isGenerating.value = false;
+      showError(null, "Connection lost. Please try again in a moment.");
       return false;
     }
 
     messageList.value.push({
       id: Date.now(),
       role: "user",
-      content: requestContent,
+      content,
       time: "now",
-      attachments: Array.from(attachments || []).map((file, index) => ({
-        name: file.name,
-        url: URL.createObjectURL(file),
-        lastModified: file.lastModified,
-        kind:
-          uploadedAttachments[index]?.kind ??
-          (file.type.startsWith("image/")
-            ? "image"
-            : file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
-              ? "pdf"
-              : "file"),
-      })),
+      attachments: Array.from(files ?? []).map((file, index) => {
+        const url = URL.createObjectURL(file);
+        objectUrls.add(url);
+        return {
+          name: file.name,
+          url,
+          lastModified: file.lastModified,
+          kind:
+            uploaded.attachments[index]?.kind ??
+            (file.type.startsWith("image/")
+              ? "image"
+              : file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+                ? "pdf"
+                : "file"),
+        };
+      }),
     });
     draft.value = "";
-    isGenerating.value = true;
-
-    socket.send(
-      JSON.stringify({
-        type: "message",
-        chatId,
-        model: selectedModel.value,
-        prompt: [requestContent, uploadedContent].filter(Boolean).join("\n\n"),
-        images: uploadedImages,
-        attachments: uploadedAttachments,
-        generativeModel: selectedComfyModel.value,
-        tsundere: tsundere.value,
-        thinking: thinking.value,
-        stream: streaming.value,
-      }),
-    );
+    generatingChatId = chatId;
+    activeSocket.send(payload);
 
     return true;
   }
@@ -421,9 +570,10 @@ export const useOllamaStore = defineStore("ollama", () => {
     return { text, files };
   }
 
-  // Upload text document files to the server for model ingestion.
-  async function uploadFiles(chatId: number, files: FileList | null) {
-    if (!files?.length) return { content: "", images: [], attachments: [] };
+  // Upload document and image files to the server for model ingestion.
+  async function uploadFiles(chatId: number, files: FileList | null): Promise<UploadResult> {
+    const result: UploadResult = { content: "", images: [], attachments: [] };
+    if (!files?.length) return result;
 
     const formData = new FormData();
     for (const file of files) {
@@ -434,20 +584,22 @@ export const useOllamaStore = defineStore("ollama", () => {
       files: {
         name: string;
         content?: string;
-        kind: "image" | "pdf" | "file";
+        kind: UploadKind;
         data?: string;
       }[];
     }>(`/api/chats/${chatId}/upload`, { method: "POST", body: formData });
-    return {
-      content: response.files
-        .filter((file) => file.kind === "file" || file.kind === "pdf")
-        .map((file) => `File: ${file.name}\n\`\`\`\n${file.content ?? ""}\n\`\`\``)
-        .join("\n\n"),
-      images: response.files
-        .filter((file) => file.kind === "image" && file.data)
-        .map((file) => file.data as string),
-      attachments: response.files.map(({ name, kind }) => ({ name, kind })),
-    };
+
+    const textBlocks: string[] = [];
+    for (const file of response.files) {
+      result.attachments.push({ name: file.name, kind: file.kind });
+      if (file.kind === "image") {
+        if (file.data) result.images.push(file.data);
+      } else {
+        textBlocks.push(`File: ${file.name}\n\`\`\`\n${file.content ?? ""}\n\`\`\``);
+      }
+    }
+    result.content = textBlocks.join("\n\n");
+    return result;
   }
 
   return {

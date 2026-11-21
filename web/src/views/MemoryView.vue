@@ -2,11 +2,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { storeToRefs } from "pinia";
-import { useRouter } from "vue-router";
+import BackToChatButton from "@/components/common/BackToChatButton.vue";
 import { useMemoryStore } from "@/stores/memory";
 import type { Memory } from "@/types/chat";
 
-const router = useRouter();
 const memoryStore = useMemoryStore();
 const { memories, loading, error } = storeToRefs(memoryStore);
 
@@ -103,12 +102,7 @@ async function handleDelete(id: number) {
     class="min-h-screen bg-[var(--theme-background)] px-5 py-8 text-[var(--theme-text)] sm:px-10"
   >
     <section class="mx-auto max-w-4xl">
-      <button
-        class="mb-8 text-sm text-[var(--theme-accent)] hover:underline"
-        @click="router.push('/')"
-      >
-        ← Back to chat
-      </button>
+      <BackToChatButton />
 
       <div
         class="rounded-2xl border border-[#ddd8ce] bg-[var(--theme-surface)] p-7 shadow-sm sm:p-9"

@@ -4,6 +4,7 @@ import { ref } from "vue";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 
+import BackToChatButton from "@/components/common/BackToChatButton.vue";
 import { useOllamaStore } from "../stores/ollama";
 import { applyTheme, defaultTheme, loadTheme, saveTheme, type Theme } from "@/services/theme";
 
@@ -59,12 +60,7 @@ async function saveAccount() {
     class="min-h-screen bg-[var(--theme-background)] px-5 py-8 text-[var(--theme-text)] sm:px-10"
   >
     <section class="mx-auto max-w-2xl">
-      <button
-        class="mb-8 text-sm text-[var(--theme-accent)] hover:underline"
-        @click="router.push('/')"
-      >
-        ← Back to chat
-      </button>
+      <BackToChatButton />
       <div
         class="rounded-2xl border border-[#ddd8ce] bg-[var(--theme-surface)] p-7 shadow-sm sm:p-9"
       >
