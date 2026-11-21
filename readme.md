@@ -73,6 +73,11 @@ The server connects to ComfyUI through `COMFYUI_BASE_URL` (the Compose default i
 `http://comfyui:8188`). `COMFYUI_NEGATIVE_PROMPT` provides the administrator's
 negative prompt for administration purposes; the user can still add some.
 
+## Server API
+
+See [API.md](./API.md) for the HTTP and WebSocket endpoint reference, including
+authentication, request/response schemas, upload behavior, and examples.
+
 The chat composer always shows the ComfyUI checkpoint selector. The selected chat
 model decides whether each request is ordinary conversation or image generation.
 For image requests it extracts and improves the positive prompt, separates negative
