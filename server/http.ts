@@ -4,6 +4,10 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import type { ReadableStream as WebReadableStream } from "node:stream/web";
+import Busboy from "busboy";
 import { PDFParse } from "pdf-parse";
 
 import {
@@ -11,7 +15,6 @@ import {
   createSession,
   deleteChat,
   getChatMessages,
-  getUserBySession,
   listChats,
   ownsChat,
   login,
@@ -25,36 +28,129 @@ import {
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
 import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
+import { getCachedUserBySession, invalidateUserCache } from "./sessions.js";
+
+// An error that carries the HTTP status the client should see.
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const allowedOrigin = process.env.CORS_ORIGIN ?? "*";
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": allowedOrigin,
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  // Let browsers cache the preflight instead of sending one before every API call.
+  "Access-Control-Max-Age": "86400",
+  ...(allowedOrigin === "*" ? {} : { Vary: "Origin" }),
+};
 
 // Write a JSON response with the CORS headers used by the browser client.
 function sendJson(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    ...corsHeaders,
   });
   response.end(JSON.stringify(body));
 }
 
-function sendBinary(response: ServerResponse, status: number, body: Buffer, contentType: string) {
-  response.writeHead(status, {
-    "Content-Type": contentType,
-    "Cache-Control": "private, max-age=3600",
-    "Access-Control-Allow-Origin": "*",
-  });
-  response.end(body);
+// Preflight answers must not carry a body.
+function sendNoContent(response: ServerResponse) {
+  response.writeHead(204, corsHeaders);
+  response.end();
 }
+
+const maxJsonBytes = 1024 * 1024;
 
 // Read the request body once and parse it as JSON for the route handlers.
+// Chunks are collected as Buffers and decoded once so multi-byte characters
+// split across chunks are not corrupted.
 async function readJson(request: IncomingMessage) {
-  let body = "";
-  for await (const chunk of request) body += chunk;
-  return body ? (JSON.parse(body) as Record<string, unknown>) : {};
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += buffer.length;
+    if (size > maxJsonBytes) {
+      throw new HttpError(413, "Request body is too large.");
+    }
+    chunks.push(buffer);
+  }
+  if (chunks.length === 0) return {} as Record<string, unknown>;
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    throw new HttpError(400, "Request body must be valid JSON.");
+  }
 }
 
+// Very small in-memory limiter for login and register attempts.
+const attempts = new Map<string, { count: number; resetAt: number }>();
+
+function clientKey(request: IncomingMessage, scope: string) {
+  const forwarded =
+    process.env.TRUST_PROXY === "true"
+      ? request.headers["x-forwarded-for"]
+      : undefined;
+  const address =
+    (typeof forwarded === "string" ? forwarded.split(",")[0]?.trim() : "") ||
+    request.socket.remoteAddress ||
+    "unknown";
+  return `${scope}:${address}`;
+}
+
+function isBlocked(key: string, max: number) {
+  const entry = attempts.get(key);
+  if (!entry) return false;
+  if (entry.resetAt <= Date.now()) {
+    attempts.delete(key);
+    return false;
+  }
+  return entry.count >= max;
+}
+
+function recordAttempt(key: string, windowMs: number) {
+  const now = Date.now();
+  const entry = attempts.get(key);
+  if (!entry || entry.resetAt <= now) {
+    attempts.set(key, { count: 1, resetAt: now + windowMs });
+  } else {
+    entry.count += 1;
+  }
+  if (attempts.size > 5_000) {
+    for (const [existingKey, value] of attempts) {
+      if (value.resetAt <= now) attempts.delete(existingKey);
+    }
+  }
+}
+
+const loginMaxFailures = 10;
+const loginWindowMs = 15 * 60 * 1000;
+const registerMaxAttempts = 10;
+const registerWindowMs = 60 * 60 * 1000;
+
 const maxUploadBytes = 10 * 1024 * 1024;
-const maxExtractedPdfChars = 50_000;
+const maxUploadFiles = 5;
+const maxExtractedTextChars = 50_000;
+
+type UploadedFile = {
+  name: string;
+  kind: "image" | "pdf" | "file";
+  content?: string;
+  data?: string;
+};
+
+function truncateText(text: string, notice: string) {
+  if (text.length <= maxExtractedTextChars) return text;
+  return `${text.slice(0, maxExtractedTextChars)}\n${notice}`;
+}
 
 async function extractPdfText(data: Buffer) {
   const parser = new PDFParse({ data });
@@ -62,82 +158,103 @@ async function extractPdfText(data: Buffer) {
     const result = await parser.getText();
     const text = result.text.trim();
     if (!text) return "[No extractable text found in this PDF.]";
-    if (text.length <= maxExtractedPdfChars) return text;
-    return `${text.slice(0, maxExtractedPdfChars)}\n[PDF text truncated.]`;
+    return truncateText(text, "[PDF text truncated.]");
   } finally {
     await parser.destroy();
   }
 }
 
-// Extract uploaded files from the browser's multipart form without storing uploads on disk.
-async function readMultipartFiles(request: IncomingMessage) {
-  const contentType = request.headers["content-type"] ?? "";
-  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
-  const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
-  if (!boundary) throw new Error("Invalid multipart upload.");
+// Binary files decoded as UTF-8 are just noise in a prompt; NUL bytes are a cheap tell.
+function looksBinary(bytes: Buffer) {
+  return bytes.subarray(0, 8_192).includes(0);
+}
 
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-  for await (const chunk of request) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    totalBytes += buffer.length;
-    if (totalBytes > maxUploadBytes)
-      throw new Error("Uploads must be smaller than 10 MB.");
-    chunks.push(buffer);
+// Turn one uploaded part into the shape the client expects.
+async function toUploadedFile(
+  name: string,
+  mimeType: string,
+  bytes: Buffer,
+): Promise<UploadedFile> {
+  if (mimeType === "application/pdf" || name.toLowerCase().endsWith(".pdf")) {
+    return { name, kind: "pdf", content: await extractPdfText(bytes) };
   }
+  if (mimeType.startsWith("image/")) {
+    return { name, kind: "image", data: bytes.toString("base64") };
+  }
+  if (looksBinary(bytes)) {
+    throw new HttpError(
+      415,
+      `${name} looks like a binary file and can't be read as text.`,
+    );
+  }
+  return {
+    name,
+    kind: "file",
+    content: truncateText(bytes.toString("utf8"), "[File text truncated.]"),
+  };
+}
 
-  const body = Buffer.concat(chunks);
-  const delimiter = Buffer.from(`--${boundary}`);
-  const files: {
-    name: string;
-    content?: string;
-    kind: "image" | "pdf" | "file";
-    data?: string;
-  }[] = [];
-  let position = body.indexOf(delimiter);
-
-  while (position !== -1) {
-    const partStart = position + delimiter.length;
-    const nextPosition = body.indexOf(delimiter, partStart);
-    if (nextPosition === -1) break;
-
-    const part = body.subarray(partStart, nextPosition);
-    const headerEnd = part.indexOf(Buffer.from("\r\n\r\n"));
-    if (headerEnd !== -1) {
-      const headers = part.subarray(0, headerEnd).toString("utf8");
-      const filename = headers.match(/filename="([^"]*)"/i)?.[1];
-      if (filename) {
-        const contentType =
-          headers.match(/content-type:\s*([^\r\n;]+)/i)?.[1]?.toLowerCase() ?? "";
-        const bytes = part.subarray(headerEnd + 4, part.length - 2);
-        if (
-          contentType === "application/pdf" ||
-          filename.toLowerCase().endsWith(".pdf")
-        ) {
-          files.push({
-            name: filename,
-            kind: "pdf",
-            content: await extractPdfText(bytes),
-          });
-        } else if (contentType.startsWith("image/")) {
-          files.push({
-            name: filename,
-            kind: "image",
-            data: bytes.toString("base64"),
-          });
-        } else {
-          files.push({
-            name: filename,
-            kind: "file",
-            content: bytes.toString("utf8"),
-          });
-        }
-      }
+// Stream uploaded files out of the multipart form without storing them on disk.
+// PDF extraction for several files runs in parallel once the upload finishes.
+function readMultipartFiles(request: IncomingMessage) {
+  return new Promise<UploadedFile[]>((resolve, reject) => {
+    let busboy: ReturnType<typeof Busboy>;
+    try {
+      busboy = Busboy({
+        headers: request.headers,
+        defParamCharset: "utf8",
+        limits: { fileSize: maxUploadBytes, files: maxUploadFiles },
+      });
+    } catch {
+      reject(new HttpError(400, "Invalid multipart upload."));
+      return;
     }
-    position = nextPosition;
-  }
 
-  return files;
+    const pending: Promise<UploadedFile>[] = [];
+    let failed = false;
+    const fail = (error: unknown) => {
+      if (failed) return;
+      failed = true;
+      request.unpipe(busboy);
+      request.resume();
+      reject(error);
+    };
+
+    busboy.on("file", (_field, stream, info) => {
+      const { filename, mimeType } = info;
+      if (!filename) {
+        stream.resume();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      stream.on("limit", () =>
+        fail(new HttpError(413, "Uploads must be smaller than 10 MB.")),
+      );
+      stream.on("end", () => {
+        if (failed) return;
+        const task = toUploadedFile(
+          filename,
+          mimeType.toLowerCase(),
+          Buffer.concat(chunks),
+        );
+        task.catch(() => {}); // avoid an unhandled rejection; Promise.all below reports it
+        pending.push(task);
+      });
+    });
+    busboy.on("filesLimit", () =>
+      fail(
+        new HttpError(413, `Upload at most ${maxUploadFiles} files at once.`),
+      ),
+    );
+    busboy.on("error", fail);
+    busboy.on("close", () => {
+      if (failed) return;
+      Promise.all(pending).then(resolve, reject);
+    });
+
+    request.pipe(busboy);
+  });
 }
 
 // Require a valid bearer token before allowing protected API routes.
@@ -146,9 +263,18 @@ async function requireUser(request: IncomingMessage, response: ServerResponse) {
   const token = authorization?.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length)
     : undefined;
-  const user = await getUserBySession(token);
+  const user = await getCachedUserBySession(token);
   if (!user) sendJson(response, 401, { error: "Authentication required." });
   return user;
+}
+
+// ComfyUI references come from the query string, so keep them from escaping its folders.
+function isSafeSubfolder(subfolder: string) {
+  if (!subfolder) return true;
+  return (
+    /^[\w .-]+(\/[\w .-]+)*$/.test(subfolder) &&
+    !subfolder.split("/").includes("..")
+  );
 }
 
 // Route each HTTP request to the right auth, account, chat, or message handler.
@@ -159,7 +285,7 @@ async function handleRequest(
   response: ServerResponse,
 ) {
   if (request.method === "OPTIONS") {
-    sendJson(response, 204, {});
+    sendNoContent(response);
     return;
   }
 
@@ -172,6 +298,14 @@ async function handleRequest(
   try {
     // Register a new account with a username and password.
     if (request.method === "POST" && path === "/api/auth/register") {
+      const key = clientKey(request, "register");
+      if (isBlocked(key, registerMaxAttempts)) {
+        sendJson(response, 429, {
+          error: "Too many sign-up attempts. Try again later.",
+        });
+        return;
+      }
+      recordAttempt(key, registerWindowMs);
       const body = await readJson(request);
       const username = typeof body.username === "string" ? body.username : "";
       const password = typeof body.password === "string" ? body.password : "";
@@ -188,15 +322,24 @@ async function handleRequest(
 
     // Log in an existing user and issue a fresh session token.
     if (request.method === "POST" && path === "/api/auth/login") {
+      const key = clientKey(request, "login");
+      if (isBlocked(key, loginMaxFailures)) {
+        sendJson(response, 429, {
+          error: "Too many failed logins. Try again later.",
+        });
+        return;
+      }
       const body = await readJson(request);
       const user = await login(
         String(body.username ?? ""),
         String(body.password ?? ""),
       );
       if (!user) {
+        recordAttempt(key, loginWindowMs);
         sendJson(response, 401, { error: "Invalid username or password." });
         return;
       }
+      attempts.delete(key);
       sendJson(response, 200, { user, token: await createSession(user.id) });
       return;
     }
@@ -245,6 +388,8 @@ async function handleRequest(
         sendJson(response, 401, { error: "Current password is incorrect." });
         return;
       }
+      // The system prompt uses aboutMe/customBehavior, so cached profiles must not go stale.
+      invalidateUserCache(user.id);
       sendJson(response, 200, { user: updatedUser });
       return;
     }
@@ -259,17 +404,41 @@ async function handleRequest(
       return;
     }
 
+    // Proxy a generated image from ComfyUI, streaming it instead of buffering it.
     if (path === "/api/comfy/image" && request.method === "GET") {
       const filename = url.searchParams.get("filename") ?? "";
       const subfolder = url.searchParams.get("subfolder") ?? "";
       const type = url.searchParams.get("type") ?? "output";
-      if (!filename || /[/\\]/.test(filename) || !["output", "input", "temp"].includes(type)) {
+      if (
+        !filename ||
+        filename === ".." ||
+        /[/\\]/.test(filename) ||
+        !isSafeSubfolder(subfolder) ||
+        !["output", "input", "temp"].includes(type)
+      ) {
         sendJson(response, 400, { error: "Invalid ComfyUI image reference." });
         return;
       }
-      const imageResponse = await getComfyImage({ filename, subfolder, type });
-      const contentType = imageResponse.headers.get("content-type") ?? "image/png";
-      sendBinary(response, 200, Buffer.from(await imageResponse.arrayBuffer()), contentType);
+      const upstream = await getComfyImage({ filename, subfolder, type });
+      if (!upstream.ok || !upstream.body) {
+        sendJson(response, upstream.status === 404 ? 404 : 502, {
+          error: "Image not available.",
+        });
+        return;
+      }
+      response.writeHead(200, {
+        "Content-Type": upstream.headers.get("content-type") ?? "image/png",
+        // Output filenames are unique, so they can be cached for good; input/temp can be reused.
+        "Cache-Control":
+          type === "output"
+            ? "private, max-age=31536000, immutable"
+            : "private, max-age=3600",
+        "Access-Control-Allow-Origin": allowedOrigin,
+      });
+      await pipeline(
+        Readable.fromWeb(upstream.body as unknown as WebReadableStream),
+        response,
+      );
       return;
     }
 
@@ -290,7 +459,7 @@ async function handleRequest(
       return;
     }
 
-    // Read uploaded text files and return their contents for the current model request.
+    // Read uploaded files and return their contents for the current model request.
     const uploadMatch = path.match(/^\/api\/chats\/(\d+)\/upload$/);
     if (uploadMatch && request.method === "POST") {
       const chatId = Number(uploadMatch[1]);
@@ -410,11 +579,26 @@ async function handleRequest(
     // Fall through to a 404 when the route does not match any known API endpoint.
     sendJson(response, 404, { error: "Not found." });
   } catch (error) {
+    // A streamed response that already started can't be turned into a JSON error.
+    if (response.headersSent) {
+      response.destroy();
+      return;
+    }
+    if (error instanceof HttpError) {
+      sendJson(response, error.status, { error: error.message });
+      return;
+    }
     if ((error as { code?: string }).code === "23505") {
       sendJson(response, 409, { error: "That username is already taken." });
       return;
     }
-    sendJson(response, 500, { error: getErrorMessage(error) });
+    console.error("Request failed:", error);
+    sendJson(response, 500, {
+      error:
+        process.env.NODE_ENV === "production"
+          ? "Something went wrong."
+          : getErrorMessage(error),
+    });
   }
 }
 
