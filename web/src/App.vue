@@ -3,9 +3,9 @@
 import { computed, nextTick, ref, watch, watchEffect } from "vue";
 import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
-import DOMPurify from "dompurify";
-import { marked } from "marked";
-
+import ChatMessageList from "./components/chat/ChatMessageList.vue";
+import ChatSidebar from "./components/chat/ChatSidebar.vue";
+import { getFileKey, isPdfFile, useChatAttachments } from "./composables/useChatAttachments";
 import { useOllamaStore } from "./stores/ollama";
 import type { Chat } from "./types/chat";
 import { applyTheme, loadTheme } from "./services/theme";
@@ -30,269 +30,38 @@ const {
   activeChatId,
   sidebarVisible,
 } = storeToRefs(ollamaStore);
-const {
-  selectPrompt,
-  sendMessage,
-  initializeAuth,
-  createNewChat,
-  deleteChat,
-  renameChat,
-  selectChat,
-  setSidebarVisible,
-  logout,
-} = ollamaStore;
+const { selectPrompt, sendMessage, initializeAuth, setSidebarVisible } = ollamaStore;
 
 const activeChat = computed(() => chats.value.find((chat: Chat) => chat.id === activeChatId.value));
 const chatScroll = ref<HTMLElement | null>(null);
 const shouldFollowLatest = ref(true);
-const renameChatId = ref<number | null>(null);
-const renameValue = ref("");
-const deleteChatId = ref<number | null>(null);
-const deleteChatName = ref("");
-const deleteConfirmation = ref("");
-const attachmentInput = ref<HTMLInputElement | null>(null);
-const attachments = ref<File[]>([]);
-const isDraggingFiles = ref(false);
-const attachmentContents = ref<Record<string, string>>({});
-const expandedAttachments = ref<Record<string, boolean>>({});
-const hiddenAttachments = ref<Record<string, boolean>>({});
-let dragDepth = 0;
+const attachmentTools = useChatAttachments(messageList);
+const {
+  attachmentInput,
+  attachments,
+  isDraggingFiles,
+  attachmentContents,
+  loadedAttachmentUrls,
+  expandedAttachments,
+  hiddenAttachments,
+  getAttachmentFileList,
+  getDisplayContent,
+  getPreviewText,
+  handleFileSelection,
+  handleFileDragEnter,
+  handleFileDragOver,
+  handleFileDragLeave,
+  handleFileDrop,
+  removeAttachment,
+  toggleExpand,
+  toggleHideAttachment,
+} = attachmentTools;
 
 // Composer actions are kept in one place so future tools can be added without
 // coupling their controls to the message composer markup.
 const composerActions = {
   attach: () => attachmentInput.value?.click(),
 };
-
-// Key helper to uniquely identify files in state maps
-function getFileKey(file: { name: string; url?: string; content?: string; lastModified?: number }) {
-  if ("lastModified" in file && file.lastModified !== undefined) {
-    return `${file.name}:${file.lastModified}`;
-  }
-  if ("url" in file && file.url) return `${file.name}:${file.url}`;
-  if ("content" in file && file.content) return `${file.name}:${file.content.length}`;
-  return file.name;
-}
-
-function isPdfFile(file: Pick<File, "name" | "type">) {
-  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-}
-
-async function loadImageIfNeeded(file: { name: string; url?: string; kind?: string }) {
-  if (file.kind !== "image" || !file.url || !file.url.startsWith("/")) return;
-  const key = getFileKey(file);
-  if (loadedAttachmentUrls.value[key]) return;
-  try {
-    const response = await fetch(`http://${window.location.hostname}:8080${file.url}`, {
-      headers: { Authorization: `Bearer ${ollamaStore.token}` },
-    });
-    if (!response.ok) throw new Error(`Failed to fetch generated image: ${response.statusText}`);
-    loadedAttachmentUrls.value[key] = URL.createObjectURL(await response.blob());
-  } catch (error) {
-    console.error("Failed to fetch generated image:", error);
-  }
-}
-
-// Add files from either the picker or a drag-and-drop operation.
-async function addAttachments(files: File[]) {
-  if (!files.length) return;
-
-  for (const file of files) {
-    const key = getFileKey(file);
-    if (file.type.startsWith("image/")) {
-      loadedAttachmentUrls.value[key] = URL.createObjectURL(file);
-    } else if (isPdfFile(file)) {
-      loadedAttachmentUrls.value[key] = URL.createObjectURL(file);
-    } else {
-      attachmentContents.value[key] = await file.text();
-    }
-    expandedAttachments.value[key] = false;
-    hiddenAttachments.value[key] = false;
-  }
-
-  attachments.value.push(...files);
-}
-
-function handleFileSelection(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files ?? []);
-  void addAttachments(files);
-  input.value = "";
-}
-
-function containsFiles(event: DragEvent) {
-  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
-}
-
-function handleFileDragEnter(event: DragEvent) {
-  if (!containsFiles(event)) return;
-  event.preventDefault();
-  dragDepth += 1;
-  isDraggingFiles.value = true;
-}
-
-function handleFileDragOver(event: DragEvent) {
-  if (!containsFiles(event)) return;
-  event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-}
-
-function handleFileDragLeave(event: DragEvent) {
-  if (!containsFiles(event)) return;
-  event.preventDefault();
-  dragDepth = Math.max(0, dragDepth - 1);
-  isDraggingFiles.value = dragDepth > 0;
-}
-
-function handleFileDrop(event: DragEvent) {
-  if (!containsFiles(event)) return;
-  event.preventDefault();
-  dragDepth = 0;
-  isDraggingFiles.value = false;
-  void addAttachments(Array.from(event.dataTransfer?.files ?? []));
-}
-
-// Remove attachment and clean up state
-function removeAttachment(index: number) {
-  const file = attachments.value[index];
-  if (file) {
-    const key = getFileKey(file);
-    delete attachmentContents.value[key];
-    delete expandedAttachments.value[key];
-    delete hiddenAttachments.value[key];
-  }
-  attachments.value.splice(index, 1);
-}
-
-// Create a new FileList from the current attachments so it can be sent with the message.
-function getAttachmentFileList(): FileList {
-  const transfer = new DataTransfer();
-  attachments.value.forEach((file) => transfer.items.add(file));
-  return transfer.files;
-}
-
-// Get the 5-line preview text
-function getPreviewText(
-  file: File | { name: string; url?: string; content?: string; lastModified?: number },
-): string {
-  const text = getDisplayContent(file);
-  if (!text) return "Loading content...";
-
-  // Extract up to 3 lines
-  const lines = text.split("\n").slice(0, 3).join("\n");
-  const maxChars = 160;
-
-  if (lines.length > maxChars) {
-    return lines.slice(0, maxChars).trim() + "…";
-  }
-
-  if (text.length > lines.length) {
-    return lines.trim() + "…";
-  }
-
-  return lines;
-}
-
-const loadedAttachmentUrls = ref<Record<string, string>>({});
-
-watch(
-  messageList,
-  (messages) => {
-    for (const msg of messages) {
-      if (msg.attachments?.length) {
-        for (const file of msg.attachments) {
-          void loadFileContentIfNeeded(file);
-          void loadImageIfNeeded(file);
-        }
-      }
-    }
-  },
-  { immediate: true, deep: true },
-);
-
-// Toggle expanded view
-function toggleExpand(file: File | { name: string; url?: string; lastModified?: number }) {
-  const key = getFileKey(file);
-  expandedAttachments.value[key] = !expandedAttachments.value[key];
-}
-
-// Hide or show attachment card completely
-function toggleHideAttachment(file: File | { name: string; url?: string; lastModified?: number }) {
-  const key = getFileKey(file);
-  hiddenAttachments.value[key] = !hiddenAttachments.value[key];
-}
-
-// Store loaded file contents by key
-const loadedContents = ref<Record<string, string>>({});
-
-// Get file content from URL
-async function fetchFileContent(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${ollamaStore.token}` },
-  });
-  if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
-  return await response.text();
-}
-
-// Load file content if not already cached, and store it in loadedContents.
-async function loadFileContentIfNeeded(file: {
-  name: string;
-  url?: string;
-  lastModified?: number;
-}) {
-  const key = getFileKey(file);
-  if (attachmentContents.value[key] || loadedContents.value[key] !== undefined) return;
-  if (!file.url) return;
-  try {
-    loadedContents.value[key] = await fetchFileContent(file.url);
-  } catch (err) {
-    console.error("Failed to fetch file content:", err);
-    loadedContents.value[key] = "Failed to load content";
-  }
-}
-
-// Clean display content getter with no side-effects
-function getDisplayContent(file: {
-  name: string;
-  url?: string;
-  content?: string;
-  lastModified?: number;
-}): string {
-  const key = getFileKey(file);
-
-  if ("content" in file && file.content) return file.content;
-  if (attachmentContents.value[key]) return attachmentContents.value[key];
-  if (loadedContents.value[key]) return loadedContents.value[key];
-
-  return "";
-}
-
-// Open the rename editor for a sidebar chat and preload the current title.
-function openRename(chat: { id: number; title: string }) {
-  renameChatId.value = chat.id;
-  renameValue.value = chat.title;
-}
-
-// Save the edited chat title and close the rename UI.
-async function submitRename() {
-  if (!renameChatId.value || !renameValue.value.trim()) return;
-  await renameChat(renameChatId.value, renameValue.value);
-  renameChatId.value = null;
-}
-
-// Prepare the delete flow with the conversation name for confirmation.
-function openDelete(chat: { id: number; title: string }) {
-  deleteChatId.value = chat.id;
-  deleteChatName.value = chat.title;
-  deleteConfirmation.value = "";
-}
-
-// Delete a chat only after the user types the exact title.
-async function confirmDelete() {
-  if (!deleteChatId.value || deleteConfirmation.value !== deleteChatName.value) return;
-  await deleteChat(deleteChatId.value);
-  deleteChatId.value = null;
-}
 
 // Detect whether the user is already viewing the newest chat messages.
 function isAtChatBottom() {
@@ -353,10 +122,6 @@ async function submitMessage() {
   }
 }
 
-// Convert Markdown into sanitized HTML before it is rendered in the chat.
-function renderMarkdown(content: string | null | undefined) {
-  return DOMPurify.sanitize(marked.parse(content ?? "", { async: false }));
-}
 </script>
 <template>
   <RouterView v-if="route.path !== '/'" />
@@ -378,109 +143,7 @@ function renderMarkdown(content: string | null | undefined) {
         Drop files to attach
       </span>
     </div>
-    <aside
-      v-if="sidebarVisible"
-      class="hidden w-[278px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-[18px] py-7 md:flex"
-    >
-      <div class="flex items-center gap-3 px-2 pb-8">
-        <div
-          class="grid size-8 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-lg font-medium text-[#f9f7f2]"
-        >
-          O
-        </div>
-        <div>
-          <p class="text-[13px] font-extrabold">Ollama desk</p>
-          <p
-            class="mt-1 font-mono text-[10px] uppercase tracking-[0.09em] text-[var(--theme-muted)]"
-          >
-            Local intelligence
-          </p>
-        </div>
-        <button
-          class="ml-auto bg-transparent text-2xl leading-none text-[var(--theme-muted)]"
-          aria-label="Collapse sidebar"
-          @click="setSidebarVisible(false)"
-        >
-          ‹
-        </button>
-      </div>
-
-      <button
-        class="flex w-full items-center gap-2.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-input)] px-3.5 py-3 text-left text-xs font-bold text-[var(--theme-text)] shadow-sm transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
-        @click="createNewChat"
-      >
-        <span class="text-lg leading-3 text-[var(--theme-accent)]">+</span> New conversation
-      </button>
-
-      <div class="mt-9">
-        <div
-          class="flex items-center justify-between px-2.5 pb-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--theme-muted)]"
-        >
-          <span>Today</span>
-          <span class="text-[var(--theme-subtle)]">{{ chats.length }}</span>
-        </div>
-        <div class="space-y-1">
-          <button
-            v-for="chat in chats"
-            :key="chat.id"
-            class="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-3 text-left text-[var(--theme-text)] transition hover:bg-[var(--theme-background)]"
-            :class="chat.id === activeChatId ? 'bg-[var(--theme-background)] shadow-sm' : ''"
-            @click="selectChat(chat.id)"
-          >
-            <span class="size-1.5 shrink-0 rounded-full bg-[var(--theme-accent)]"></span>
-            <span class="flex min-w-0 flex-1 flex-col gap-1">
-              <strong class="truncate text-[11px]">{{ chat.title }}</strong>
-              <small class="font-mono text-[9px] text-[var(--theme-subtle)]">{{
-                new Date(chat.createdAt).toLocaleDateString()
-              }}</small>
-            </span>
-            <span
-              role="button"
-              tabindex="0"
-              class="hidden px-1 text-xs text-[var(--theme-subtle)] hover:text-[var(--theme-accent)] group-hover:inline"
-              aria-label="Delete chat"
-              @click.stop="openDelete(chat)"
-              @keydown.enter.stop="openDelete(chat)"
-            >
-              ×
-            </span>
-            <span
-              role="button"
-              tabindex="0"
-              class="hidden px-1 text-xs text-[var(--theme-subtle)] hover:text-[var(--theme-accent)] group-hover:inline"
-              aria-label="Rename chat"
-              @click.stop="openRename(chat)"
-              @keydown.enter.stop="openRename(chat)"
-            >
-              ✎
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <div class="mt-auto border-t border-[var(--theme-border)] px-2 pt-4">
-        <div class="flex items-center gap-2 font-mono text-[10px] text-[var(--theme-muted)]">
-          <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Ollama connected
-        </div>
-        <div class="mt-4 flex gap-2 text-[10px] text-[var(--theme-subtle)]">
-          <span class="max-w-[130px] truncate text-[var(--theme-muted)]">{{ user.username }}</span>
-          <span>·</span>
-          <button
-            class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
-            @click="router.push('/settings')"
-          >
-            Settings
-          </button>
-          <span>·</span>
-          <button
-            class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
-            @click="logout"
-          >
-            Log out
-          </button>
-        </div>
-      </div>
-    </aside>
+    <ChatSidebar />
 
     <section class="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <header
@@ -518,152 +181,19 @@ function renderMarkdown(content: string | null | undefined) {
       </header>
 
       <div class="flex min-h-0 flex-1 flex-col px-5 py-7 sm:px-[6.5%]">
-        <div
-          ref="chatScroll"
-          class="min-h-0 flex-1 overflow-y-auto pr-1"
-          @scroll="handleChatScroll"
-        >
-          <div
-            v-if="messageList.length === 0"
-            class="flex min-h-full flex-col items-center justify-center py-16 text-center"
-          >
-            <div
-              class="mb-4 grid size-12 place-items-center rounded-xl bg-[var(--theme-accent)] font-mono text-2xl text-[#f9f7f2]"
-            >
-              ✦
-            </div>
-            <h2 class="text-xl font-bold">Start a fresh conversation</h2>
-            <p class="mt-2 max-w-md text-sm leading-6 text-[var(--theme-muted)]">
-              Bring a question, a half-formed idea, or a problem you want to untangle.
-            </p>
-          </div>
-          <div v-else class="mx-auto w-full max-w-3xl space-y-7">
-            <article v-for="message in messageList" :key="message.id" class="flex gap-3">
-              <div
-                class="grid size-8 shrink-0 place-items-center rounded-lg font-mono text-xs font-medium"
-                :class="
-                  message.role === 'assistant'
-                    ? 'bg-[var(--theme-accent)] text-[#fffaf4]'
-                    : 'bg-[var(--theme-sidebar)] text-[var(--theme-text)]'
-                "
-              >
-                {{ message.role === "assistant" ? "O" : "Y" }}
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="mb-1.5 flex items-baseline gap-2 text-xs">
-                  <strong>{{
-                    message.role === "assistant" ? message.model || "Assistant" : "You"
-                  }}</strong>
-                  <span class="font-mono text-[10px] text-[var(--theme-subtle)]">{{
-                    message.time
-                  }}</span>
-                </div>
-                <details
-                  v-if="message.thinking"
-                  class="mb-3 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-3 py-2 text-xs text-[var(--theme-muted)]"
-                  :open="isGenerating"
-                >
-                  <summary
-                    class="cursor-pointer select-none font-semibold text-[var(--theme-text)]"
-                  >
-                    Thinking{{ isGenerating ? "..." : "" }}
-                  </summary>
-                  <div class="mt-2 whitespace-pre-wrap leading-6">{{ message.thinking }}</div>
-                </details>
-
-                <!-- Attached files rendering inside MessageList -->
-                <div v-if="message.attachments?.length" class="mb-3 space-y-2">
-                  <div
-                    v-for="file in message.attachments"
-                    :key="getFileKey(file)"
-                    class="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)] p-2.5 text-xs"
-                  >
-                    <div
-                      class="flex items-center justify-between font-mono text-[11px] text-[var(--theme-muted)]"
-                    >
-                      <span class="font-semibold">{{ file.name }}</span>
-                      <div class="flex items-center gap-2">
-                        <button
-                          type="button"
-                          class="text-[10px] uppercase text-[var(--theme-accent)] hover:underline"
-                          @click="toggleExpand(file)"
-                        >
-                          {{ expandedAttachments[getFileKey(file)] ? "Show less" : "Show full" }}
-                        </button>
-                        <button
-                          type="button"
-                          class="text-[10px] uppercase text-[var(--theme-muted)] hover:underline"
-                          @click="toggleHideAttachment(file)"
-                        >
-                          {{
-                            hiddenAttachments[getFileKey(file)]
-                              ? "Unhide attachment"
-                              : "Hide attachment"
-                          }}
-                        </button>
-                      </div>
-                    </div>
-
-                    <img
-                      v-if="file.kind === 'image'"
-                      :src="loadedAttachmentUrls[getFileKey(file)]"
-                      :alt="file.name"
-                      class="mt-1.5 max-h-[32rem] w-full rounded bg-[var(--theme-sidebar)] object-contain"
-                    />
-                    <iframe
-                      v-else-if="
-                        file.kind === 'pdf' &&
-                        !hiddenAttachments[getFileKey(file)] &&
-                        (loadedAttachmentUrls[getFileKey(file)] || file.url)
-                      "
-                      :src="loadedAttachmentUrls[getFileKey(file)] || file.url"
-                      :title="file.name"
-                      class="mt-1.5 h-[32rem] w-full rounded bg-[var(--theme-sidebar)]"
-                    ></iframe>
-                    <!-- Message List Preview Block -->
-                    <div
-                      v-else-if="!hiddenAttachments[getFileKey(file)]"
-                      class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
-                      @click="toggleExpand(file)"
-                    >
-                      <pre
-                        v-if="expandedAttachments[getFileKey(file)]"
-                        class="max-h-96 overflow-y-auto whitespace-pre-wrap break-all"
-                        >{{ getDisplayContent(file) || "Loading content..." }}</pre
-                      >
-                      <pre
-                        v-else
-                        class="max-h-24 overflow-hidden whitespace-pre-wrap break-all opacity-80"
-                        >{{ getPreviewText(file) }}</pre
-                      >
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  class="min-h-14 w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-subtle)]"
-                  v-html="renderMarkdown(message.content)"
-                ></div>
-              </div>
-            </article>
-            <div v-if="isGenerating" class="flex items-center gap-3">
-              <span
-                class="grid size-8 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-xs text-[#fffaf4]"
-                >O</span
-              >
-              <span
-                class="flex items-center gap-2 rounded-full bg-[var(--theme-sidebar)] px-3 py-2 text-xs text-[var(--theme-muted)]"
-                ><i class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)]"></i
-                ><i
-                  class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)] [animation-delay:150ms]"
-                ></i
-                ><i
-                  class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)] [animation-delay:300ms]"
-                ></i
-                ><span>{{ thinking ? "Thinking..." : "Generating..." }}</span></span
-              >
-            </div>
-          </div>
+        <div ref="chatScroll" class="min-h-0 flex-1 overflow-y-auto pr-1" @scroll="handleChatScroll">
+          <ChatMessageList
+            :messages="messageList"
+            :is-generating="isGenerating"
+            :thinking="thinking"
+            :expanded-attachments="expandedAttachments"
+            :hidden-attachments="hiddenAttachments"
+            :loaded-attachment-urls="loadedAttachmentUrls"
+            :toggle-expand="toggleExpand"
+            :toggle-hide-attachment="toggleHideAttachment"
+            :get-display-content="getDisplayContent"
+            :get-preview-text="getPreviewText"
+          />
         </div>
 
         <div class="mx-auto mt-8 w-full max-w-3xl">
@@ -853,78 +383,5 @@ function renderMarkdown(content: string | null | undefined) {
       </div>
     </section>
 
-    <div
-      v-if="renameChatId"
-      class="fixed inset-0 z-10 grid place-items-center bg-[var(--theme-text)]/30 px-5"
-    >
-      <form
-        class="w-full max-w-md rounded-xl bg-[var(--theme-surface)] p-6 shadow-xl"
-        @submit.prevent="submitRename"
-      >
-        <h2 class="text-lg font-bold">Rename chat</h2>
-        <label class="mt-4 block text-sm font-semibold">
-          Chat name
-          <input
-            v-model="renameValue"
-            type="text"
-            required
-            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
-          />
-        </label>
-        <div class="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            class="px-3 py-2 text-sm text-[var(--theme-muted)]"
-            @click="renameChatId = null"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            class="rounded-lg bg-[var(--theme-accent)] px-4 py-2 text-sm font-bold text-white"
-          >
-            Save
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <div
-      v-if="deleteChatId"
-      class="fixed inset-0 z-10 grid place-items-center bg-[var(--theme-text)]/30 px-5"
-    >
-      <form
-        class="w-full max-w-md rounded-xl bg-[var(--theme-surface)] p-6 shadow-xl"
-        @submit.prevent="confirmDelete"
-      >
-        <h2 class="text-lg font-bold">Delete chat?</h2>
-        <p class="mt-2 text-sm leading-6 text-[var(--theme-muted)]">
-          Type <strong class="text-[#4d4841]">{{ deleteChatName }}</strong> to permanently delete
-          this conversation.
-        </p>
-        <input
-          v-model="deleteConfirmation"
-          type="text"
-          autocomplete="off"
-          class="mt-4 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
-        />
-        <div class="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            class="px-3 py-2 text-sm text-[var(--theme-muted)]"
-            @click="deleteChatId = null"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            :disabled="deleteConfirmation !== deleteChatName"
-            class="rounded-lg bg-[#a9432c] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Delete permanently
-          </button>
-        </div>
-      </form>
-    </div>
   </main>
 </template>
