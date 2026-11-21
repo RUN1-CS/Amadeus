@@ -52,9 +52,11 @@ const deleteChatName = ref("");
 const deleteConfirmation = ref("");
 const attachmentInput = ref<HTMLInputElement | null>(null);
 const attachments = ref<File[]>([]);
+const isDraggingFiles = ref(false);
 const attachmentContents = ref<Record<string, string>>({});
 const expandedAttachments = ref<Record<string, boolean>>({});
 const hiddenAttachments = ref<Record<string, boolean>>({});
+let dragDepth = 0;
 
 // Composer actions are kept in one place so future tools can be added without
 // coupling their controls to the message composer markup.
@@ -91,17 +93,15 @@ async function loadImageIfNeeded(file: { name: string; url?: string; kind?: stri
   }
 }
 
-// Keep selected files visible and load their text previews
-async function handleFileSelection(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files ?? []);
+// Add files from either the picker or a drag-and-drop operation.
+async function addAttachments(files: File[]) {
   if (!files.length) return;
 
   for (const file of files) {
     const key = getFileKey(file);
     if (file.type.startsWith("image/")) {
       loadedAttachmentUrls.value[key] = URL.createObjectURL(file);
-  } else if (isPdfFile(file)) {
+    } else if (isPdfFile(file)) {
       loadedAttachmentUrls.value[key] = URL.createObjectURL(file);
     } else {
       attachmentContents.value[key] = await file.text();
@@ -111,7 +111,45 @@ async function handleFileSelection(event: Event) {
   }
 
   attachments.value.push(...files);
+}
+
+function handleFileSelection(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  void addAttachments(files);
   input.value = "";
+}
+
+function containsFiles(event: DragEvent) {
+  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+}
+
+function handleFileDragEnter(event: DragEvent) {
+  if (!containsFiles(event)) return;
+  event.preventDefault();
+  dragDepth += 1;
+  isDraggingFiles.value = true;
+}
+
+function handleFileDragOver(event: DragEvent) {
+  if (!containsFiles(event)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+}
+
+function handleFileDragLeave(event: DragEvent) {
+  if (!containsFiles(event)) return;
+  event.preventDefault();
+  dragDepth = Math.max(0, dragDepth - 1);
+  isDraggingFiles.value = dragDepth > 0;
+}
+
+function handleFileDrop(event: DragEvent) {
+  if (!containsFiles(event)) return;
+  event.preventDefault();
+  dragDepth = 0;
+  isDraggingFiles.value = false;
+  void addAttachments(Array.from(event.dataTransfer?.files ?? []));
 }
 
 // Remove attachment and clean up state
@@ -324,8 +362,22 @@ function renderMarkdown(content: string | null | undefined) {
   <RouterView v-if="route.path !== '/'" />
   <main
     v-else-if="user"
-    class="flex h-screen overflow-hidden bg-[var(--theme-background)] text-[var(--theme-text)]"
+    class="relative flex h-screen overflow-hidden bg-[var(--theme-background)] text-[var(--theme-text)]"
+    @dragenter="handleFileDragEnter"
+    @dragover="handleFileDragOver"
+    @dragleave="handleFileDragLeave"
+    @drop="handleFileDrop"
   >
+    <div
+      v-if="isDraggingFiles"
+      class="pointer-events-none absolute inset-3 z-20 grid place-items-center rounded-2xl border-2 border-dashed border-[var(--theme-accent)] bg-[var(--theme-accent)]/10"
+    >
+      <span
+        class="rounded-xl bg-[var(--theme-surface)] px-6 py-4 text-sm font-semibold text-[var(--theme-text)] shadow-lg"
+      >
+        Drop files to attach
+      </span>
+    </div>
     <aside
       v-if="sidebarVisible"
       class="hidden w-[278px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-[18px] py-7 md:flex"
@@ -771,20 +823,14 @@ function renderMarkdown(content: string | null | undefined) {
                 </div>
 
                 <iframe
-                  v-if="
-                    isPdfFile(file) &&
-                    !hiddenAttachments[getFileKey(file)]
-                  "
+                  v-if="isPdfFile(file) && !hiddenAttachments[getFileKey(file)]"
                   :src="loadedAttachmentUrls[getFileKey(file)]"
                   :title="file.name"
                   class="mt-1.5 h-80 w-full rounded bg-[var(--theme-sidebar)]"
                 ></iframe>
                 <!-- Interactive Code / Text Preview Block -->
                 <div
-                  v-else-if="
-                    !isPdfFile(file) &&
-                    !hiddenAttachments[getFileKey(file)]
-                  "
+                  v-else-if="!isPdfFile(file) && !hiddenAttachments[getFileKey(file)]"
                   class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
                   @click="toggleExpand(file)"
                 >
