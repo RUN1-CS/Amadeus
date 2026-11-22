@@ -64,6 +64,11 @@ export async function register(username: string, password: string) {
     "INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username",
     [normalizeUsername(username), hashPassword(password)],
   );
+  if (result.rows[0] !== undefined && result.rows[0].id === 1) {
+    await pool.query("INSERT INTO user_admins (user_id) VALUES ($1)", [
+      result.rows[0].id,
+    ]);
+  }
   return publicUser(result.rows[0]!);
 }
 
@@ -252,7 +257,7 @@ export async function getAdminUsers(beforeId?: string) {
   const users = result.rows.slice(0, pageSize);
   return {
     users,
-    nextCursor: hasMore ? users.at(-1)?.id ?? null : null,
+    nextCursor: hasMore ? (users.at(-1)?.id ?? null) : null,
   };
 }
 
