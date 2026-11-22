@@ -1,7 +1,6 @@
 // Per-model enable/disable switches for Ollama and ComfyUI models.
+import { AiModelType } from "../types.js";
 import { pool } from "./pool.js";
-
-export type AiModelType = "ollama" | "comfyui";
 
 // Missing model-access records mean the model is enabled by default.
 export async function getAiModelAccess(

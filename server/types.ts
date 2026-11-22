@@ -85,3 +85,5 @@ export type UploadedFile = {
   content?: string;
   data?: string;
 };
+
+export type AiModelType = "ollama" | "comfyui";

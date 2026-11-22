@@ -17,7 +17,6 @@ export {
   isAiModelEnabled,
   setAiModelEnabled,
 } from "./db/model_access.js";
-export type { AiModelType } from "./db/model_access.js";
 export {
   listChats,
   createChat,
