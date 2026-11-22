@@ -25,6 +25,14 @@ type AdminUserPage = {
   nextCursor: string | null;
 };
 
+type ModelType = "ollama" | "comfyui";
+type ManagedModel = { name: string; enabled: boolean };
+type ModelCatalog = {
+  ollama: ManagedModel[];
+  comfyui: ManagedModel[];
+  errors: { ollama?: string; comfyui?: string };
+};
+
 const store = useOllamaStore();
 const { user, token } = storeToRefs(store);
 const api = createApiClient(() => token.value);
@@ -38,6 +46,18 @@ const usersHasMore = ref(true);
 const usersLoading = ref(false);
 const usersError = ref("");
 const usersList = ref<HTMLElement | null>(null);
+const modelCatalog = ref<ModelCatalog>({
+  ollama: [],
+  comfyui: [],
+  errors: {},
+});
+const modelCatalogLoading = ref(false);
+const modelCatalogError = ref("");
+const savingModelKeys = ref<string[]>([]);
+const modelGroups: { key: ModelType; title: string }[] = [
+  { key: "ollama", title: "Ollama chat models" },
+  { key: "comfyui", title: "ComfyUI image models" },
+];
 
 const metrics = [
   { key: "users", label: "Registered users" },
@@ -80,6 +100,45 @@ async function loadMoreUsers() {
   }
 }
 
+async function loadModelCatalog() {
+  modelCatalogLoading.value = true;
+  modelCatalogError.value = "";
+  try {
+    modelCatalog.value = await api.request<ModelCatalog>("/api/admin/models");
+  } catch (requestError) {
+    modelCatalogError.value =
+      requestError instanceof Error ? requestError.message : "Could not load AI models.";
+  } finally {
+    modelCatalogLoading.value = false;
+  }
+}
+
+async function setModelEnabled(modelType: ModelType, model: ManagedModel, enabled: boolean) {
+  const key = `${modelType}:${model.name}`;
+  if (savingModelKeys.value.includes(key)) return;
+
+  savingModelKeys.value = [...savingModelKeys.value, key];
+  modelCatalogError.value = "";
+  try {
+    const response = await api.request<{
+      modelType: ModelType;
+      modelName: string;
+      enabled: boolean;
+    }>("/api/admin/models", {
+      method: "PATCH",
+      body: JSON.stringify({ modelType, modelName: model.name, enabled }),
+    });
+    const models = modelCatalog.value[response.modelType];
+    const updatedModel = models.find((entry) => entry.name === response.modelName);
+    if (updatedModel) updatedModel.enabled = response.enabled;
+  } catch (requestError) {
+    modelCatalogError.value =
+      requestError instanceof Error ? requestError.message : "Could not update model access.";
+  } finally {
+    savingModelKeys.value = savingModelKeys.value.filter((entry) => entry !== key);
+  }
+}
+
 function handleUsersScroll() {
   const element = usersList.value;
   if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 160) {
@@ -94,6 +153,7 @@ function formatDate(value: string) {
 onMounted(() => {
   void loadOverview();
   void loadMoreUsers();
+  void loadModelCatalog();
 });
 </script>
 
@@ -228,6 +288,82 @@ onMounted(() => {
             >
               All users loaded.
             </p>
+          </div>
+        </section>
+
+        <section
+          class="mt-6 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-6"
+        >
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold">AI model access</h2>
+              <p class="mt-1 text-sm text-[var(--theme-muted)]">
+                Choose which discovered models regular users can use. Admins retain access to all
+                models.
+              </p>
+            </div>
+            <button
+              class="rounded-lg border border-[var(--theme-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--theme-accent)] disabled:opacity-50"
+              :disabled="modelCatalogLoading"
+              @click="loadModelCatalog"
+            >
+              {{ modelCatalogLoading ? "Refreshing…" : "Refresh models" }}
+            </button>
+          </div>
+
+          <p
+            v-if="modelCatalogError"
+            role="alert"
+            class="mt-4 rounded-lg bg-[#f9e4dc] px-3 py-2 text-sm text-[#853c2a]"
+          >
+            {{ modelCatalogError }}
+          </p>
+
+          <div class="mt-5 grid gap-5 lg:grid-cols-2">
+            <section
+              v-for="group in modelGroups"
+              :key="group.key"
+              class="rounded-lg border border-[var(--theme-border)]"
+            >
+              <header class="border-b border-[var(--theme-border)] px-4 py-3">
+                <h3 class="font-semibold">{{ group.title }}</h3>
+                <p v-if="modelCatalog.errors[group.key]" class="mt-1 text-xs text-[#853c2a]">
+                  {{ modelCatalog.errors[group.key] }}
+                </p>
+              </header>
+              <ul
+                v-if="modelCatalog[group.key].length"
+                class="max-h-[50vh] divide-y divide-[var(--theme-border)] overflow-y-auto"
+              >
+                <li
+                  v-for="model in modelCatalog[group.key]"
+                  :key="model.name"
+                  class="flex items-center justify-between gap-4 px-4 py-3"
+                >
+                  <span class="min-w-0 break-all text-sm font-medium">{{ model.name }}</span>
+                  <label class="flex shrink-0 items-center gap-2 text-xs text-[var(--theme-muted)]">
+                    <input
+                      type="checkbox"
+                      class="size-4 accent-[var(--theme-accent)]"
+                      :checked="model.enabled"
+                      :disabled="savingModelKeys.includes(`${group.key}:${model.name}`)"
+                      :aria-label="`Allow regular users to use ${model.name}`"
+                      @change="
+                        setModelEnabled(
+                          group.key,
+                          model,
+                          ($event.target as HTMLInputElement).checked,
+                        )
+                      "
+                    />
+                    {{ model.enabled ? "Enabled" : "Disabled" }}
+                  </label>
+                </li>
+              </ul>
+              <p v-else class="px-4 py-5 text-sm text-[var(--theme-muted)]">
+                {{ modelCatalogLoading ? "Loading models…" : "No models discovered." }}
+              </p>
+            </section>
           </div>
         </section>
 

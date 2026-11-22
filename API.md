@@ -203,6 +203,22 @@ cursor means there are no more users. Records contain only account ID,
 username, join date, and admin status. The route requires an active admin
 session and returns `403` to other signed-in users.
 
+### Manage AI model access (admin)
+
+```http
+GET /api/admin/models
+PATCH /api/admin/models
+Authorization: Bearer <session-token>
+```
+
+The GET response lists the discovered Ollama and ComfyUI models separately,
+with an `enabled` flag for regular-user access, plus any discovery errors.
+Models are enabled by default unless their state has been explicitly changed.
+PATCH accepts `{ "modelType": "ollama" | "comfyui", "modelName": "...",
+"enabled": true | false }`. Only currently discovered models can be updated.
+Changes affect model lists served to regular users and are also enforced when a
+model is requested. Administrators can continue to use every model.
+
 ### Update the account
 
 ```http
