@@ -35,6 +35,7 @@ import { getErrorMessage } from "./errors.js";
 import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
 import { getCachedUserBySession, invalidateUserCache } from "./sessions.js";
 import { getModels, loadModels } from "./ai.js";
+import { getErrorType, logger } from "./logger.js";
 
 // An error that carries the HTTP status the client should see.
 class HttpError extends Error {
@@ -738,7 +739,10 @@ async function handleRequest(
       sendJson(response, 409, { error: "That username is already taken." });
       return;
     }
-    console.error("Request failed:", error);
+    logger.error(
+      { event: "http.request_failed", errorType: getErrorType(error) },
+      "HTTP request failed",
+    );
     sendJson(response, 500, {
       error:
         process.env.NODE_ENV === "production"
@@ -751,6 +755,15 @@ async function handleRequest(
 // Start the HTTP server with the route dispatcher attached.
 export function createHttpServer() {
   return createServer((request, response) => {
+    const startedAt = Date.now();
+    response.once("finish", () => {
+      logger.info({
+        event: "http.request",
+        method: request.method,
+        statusCode: response.statusCode,
+        durationMs: Date.now() - startedAt,
+      });
+    });
     void handleRequest(request, response);
   });
 }

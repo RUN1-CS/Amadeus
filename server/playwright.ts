@@ -7,6 +7,7 @@ import type { Tool } from "ollama";
 
 import { getErrorMessage } from "./errors.js";
 import type { ToolExecution, ToolResult, McpTool } from "./types.js";
+import { getErrorType, logger } from "./logger.js";
 
 let clientPromise: Promise<Client> | undefined;
 
@@ -87,9 +88,12 @@ export async function getPlaywrightTools(): Promise<Tool[]> {
       },
     }));
   } catch (error) {
-    console.error(
-      "Could not load Playwright MCP tools:",
-      getErrorMessage(error),
+    logger.error(
+      {
+        event: "playwright.tools_load_failed",
+        errorType: getErrorType(error),
+      },
+      "Could not load Playwright MCP tools",
     );
     clientPromise = undefined;
     return [];
@@ -104,20 +108,25 @@ export async function callPlaywrightTool(
   try {
     const client = await getClient();
     const normalizedArgs = normalizeToolArguments(name, args);
-    console.log("[Playwright] call", name, normalizedArgs);
+    const startedAt = Date.now();
     const result = extractToolText(
       await client.callTool({ name, arguments: normalizedArgs }),
     );
-    console.log("[Playwright] result", {
-      name,
+    logger.info({
+      event: "playwright.tool_call",
       ok: result.ok,
-      characters: result.text.length,
-      preview: result.text.slice(0, 240),
+      durationMs: Date.now() - startedAt,
     });
     return result;
   } catch (error) {
     const message = getErrorMessage(error);
-    console.error(`Could not call Playwright MCP tool ${name}:`, message);
+    logger.error(
+      {
+        event: "playwright.tool_call_failed",
+        errorType: getErrorType(error),
+      },
+      "Could not call Playwright MCP tool",
+    );
     clientPromise = undefined;
     return { ok: false, text: `Playwright tool ${name} failed: ${message}` };
   }

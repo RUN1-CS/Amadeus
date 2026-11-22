@@ -20,6 +20,7 @@ import { SavedMessage } from "./types.js";
 import { getErrorMessage } from "./errors.js";
 import type { ClientMessage } from "./protocol.js";
 import { callPlaywrightTool, getPlaywrightTools } from "./playwright.js";
+import { getErrorType, logger } from "./logger.js";
 
 export const ollama = new Ollama({ host: ollamaBaseUrl });
 
@@ -40,7 +41,10 @@ export async function loadModels(): Promise<OllamaModels> {
     modelLoadError = undefined;
   } catch (error) {
     modelLoadError = getErrorMessage(error);
-    console.error("Could not load Ollama models:", error);
+    logger.error(
+      { event: "ollama.model_load_failed", errorType: getErrorType(error) },
+      "Could not load Ollama models",
+    );
   }
   return cachedModels;
 }
@@ -74,7 +78,10 @@ async function fetchModelInfo(model: string): Promise<ModelInfo> {
 
   const capabilities = (details as { capabilities?: unknown }).capabilities;
   const tools = Array.isArray(capabilities) && capabilities.includes("tools");
-  console.log(`[AI] ${model} tool support: ${tools ? "enabled" : "disabled"}`);
+  logger.info({
+    event: "ai.model_capabilities_loaded",
+    toolSupport: tools ? "enabled" : "disabled",
+  });
 
   return { contextWindow, tools };
 }
@@ -85,9 +92,13 @@ function getModelInfo(model: string): Promise<ModelInfo> {
   if (cached) return cached;
 
   const pending = fetchModelInfo(model).catch((error) => {
-    console.warn(
-      `[AI] Could not load model info for ${model}; using defaults with tools disabled:`,
-      getErrorMessage(error),
+    logger.warn(
+      {
+        event: "ai.model_info_load_failed",
+        errorType: getErrorType(error),
+        usingDefaults: true,
+      },
+      "Could not load model information; using defaults",
     );
     // Don't cache failures forever: let the next request retry.
     modelInfoCache.delete(model);
@@ -113,9 +124,9 @@ async function embedText(text: string) {
     });
     return response.embeddings[0];
   } catch (error) {
-    console.error(
-      "Could not create message embedding:",
-      getErrorMessage(error),
+    logger.warn(
+      { event: "ai.message_embedding_failed", errorType: getErrorType(error) },
+      "Could not create message embedding",
     );
     return undefined;
   }
@@ -133,7 +144,10 @@ export async function releaseModelForImage(model: string) {
   try {
     await ollama.generate({ model, prompt: "", keep_alive: 0 });
   } catch (error) {
-    console.warn(`[AI] Could not unload ${model}:`, getErrorMessage(error));
+    logger.warn(
+      { event: "ai.model_unload_failed", errorType: getErrorType(error) },
+      "Could not unload model",
+    );
   }
 }
 
@@ -154,7 +168,10 @@ async function searchMessageMemory(userId: number, prompt: string) {
       .slice(0, maxMemoryContextLength);
     return { context, embedding };
   } catch (error) {
-    console.error("Could not search message memory:", getErrorMessage(error));
+    logger.warn(
+      { event: "ai.memory_search_failed", errorType: getErrorType(error) },
+      "Could not search message memory",
+    );
     return { context: "", embedding };
   }
 }
@@ -313,9 +330,12 @@ export async function decideImageGeneration(
         typeof parsed.negative === "string" ? parsed.negative.trim() : "",
     };
   } catch (error) {
-    console.error(
-      "Could not parse image-generation decision:",
-      getErrorMessage(error),
+    logger.warn(
+      {
+        event: "ai.image_generation_decision_parse_failed",
+        errorType: getErrorType(error),
+      },
+      "Could not parse image-generation decision",
     );
     return none;
   }
@@ -406,8 +426,7 @@ export async function chatWithTools(
 
     messages.push(response.message);
     for (const toolCall of toolCalls) {
-      console.log("[AI] Tool call:", toolCall.function.name);
-      console.log("[AI] Arguments:", toolCall.function.arguments);
+      logger.info({ event: "ai.tool_call" });
       const result = await callPlaywrightTool(
         toolCall.function.name,
         toolCall.function.arguments,

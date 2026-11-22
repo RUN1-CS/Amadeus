@@ -25,6 +25,7 @@ import type { PublicUser } from "./types.js";
 import type { ClientMessage } from "./protocol.js";
 import { generateImage } from "./comfyui.js";
 import { maxPayloadBytes, heartbeatMs } from "./config.js";
+import { getErrorType, logger } from "./logger.js";
 
 // Session token per socket; the user is re-resolved (cheaply, via cache) on each message
 // so profile changes and expired sessions take effect without reconnecting.
@@ -134,7 +135,10 @@ async function titleFirstExchange(
     const title = await generateChatTitle(model, prompt, reply, contextWindow);
     return title ? await renameChat(user.id, chatId, title) : undefined;
   } catch (error) {
-    console.error("Could not generate chat title:", getErrorMessage(error));
+    logger.warn(
+      { event: "websocket.chat_title_failed", errorType: getErrorType(error) },
+      "Could not generate chat title",
+    );
     return undefined;
   }
 }
@@ -284,7 +288,10 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
       await handleGenerateImage(ws, user, data);
     }
   } catch (error) {
-    console.error("Request failed:", error);
+    logger.warn(
+      { event: "websocket.request_failed", errorType: getErrorType(error) },
+      "WebSocket request failed",
+    );
     send(ws, { type: "error", error: getErrorMessage(error) });
     send(ws, { type: "done" });
   }
@@ -296,15 +303,32 @@ export function attachWebSocketServer(server: import("node:http").Server) {
 
   wss.on("connection", (ws) => {
     socketAlive.add(ws);
+    logger.info({ event: "websocket.connected" });
+    ws.on("close", (code) => {
+      logger.info({ event: "websocket.closed", code });
+    });
     ws.on("pong", () => socketAlive.add(ws));
     ws.on("error", (error) => {
-      console.error("WebSocket error:", getErrorMessage(error));
+      logger.error(
+        { event: "websocket.error", errorType: getErrorType(error) },
+        "WebSocket error",
+      );
     });
     ws.on("message", (message) => {
       const previous = socketQueues.get(ws) ?? Promise.resolve();
       socketQueues.set(
         ws,
-        previous.then(() => handleMessage(ws, message)).catch(() => {}),
+        previous
+          .then(() => handleMessage(ws, message))
+          .catch((error: unknown) => {
+            logger.error(
+              {
+                event: "websocket.message_handler_failed",
+                errorType: getErrorType(error),
+              },
+              "WebSocket message handler failed",
+            );
+          }),
       );
     });
   });

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { comfyUiBaseUrl, comfyUiNegativePrompt } from "./config.js";
 import { getErrorMessage } from "./errors.js";
+import { getErrorType, logger } from "./logger.js";
 
 type ComfyImage = {
   filename: string;
@@ -69,7 +70,13 @@ export async function loadComfyModels(): Promise<string[]> {
       modelLoadError = getErrorMessage(error);
 
       if (attempt === 4) {
-        console.error("Could not load ComfyUI models:", modelLoadError);
+        logger.error(
+          {
+            event: "comfyui.model_load_failed",
+            errorType: getErrorType(error),
+          },
+          "Could not load ComfyUI models",
+        );
         break;
       }
 

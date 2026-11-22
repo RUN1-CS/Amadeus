@@ -83,6 +83,11 @@ separate port and the web service proxies `/api` requests to the server; bind
 the web port to localhost as well if you also want to prevent LAN access to the
 API through that proxy.
 
+Server logs are structured JSON written to standard output by Pino. Set
+`LOG_LEVEL` to `fatal`, `error`, `warn`, `info` (default), `debug`, or `trace` to
+adjust verbosity. Logs intentionally exclude request bodies, chat content,
+credentials, tokens, and browser tool arguments/results.
+
 ## Server API
 
 See [API.md](./API.md) for the HTTP and WebSocket endpoint reference, including
