@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { mkdir, open, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
@@ -21,7 +21,7 @@ function getPostgresEnvironment() {
 
   const connection = new URL(connectionString);
   const environment: NodeJS.ProcessEnv = {
-    ...process.env,
+    PATH: process.env.PATH,
     PGHOST: decodeURIComponent(connection.hostname),
     PGPORT: connection.port || "5432",
     PGDATABASE: decodeURIComponent(connection.pathname.slice(1)),
@@ -46,11 +46,12 @@ function getPostgresEnvironment() {
 
 async function runPostgresCommand(command: string, args: string[]) {
   try {
-    await executeFile(command, args, {
+    const result = await executeFile(command, args, {
       env: getPostgresEnvironment(),
       timeout: databaseBackupTimeoutMs,
-      maxBuffer: 1024 * 1024,
+      maxBuffer: 8 * 1024 * 1024,
     });
+    return result.stdout;
   } catch (error) {
     const detail =
       typeof error === "object" &&
@@ -93,6 +94,7 @@ export async function createDatabaseBackup() {
       "--format=custom",
       "--no-owner",
       "--no-privileges",
+      "--exclude-table=public.user_data_keys",
       "--file",
       filePath,
     ]);
@@ -104,6 +106,15 @@ export async function createDatabaseBackup() {
 }
 
 export async function restoreDatabaseBackup(filePath: string) {
+  const listing = await runPostgresCommand(pgRestorePath, [
+    "--list",
+    filePath,
+  ]);
+  if (!listing.includes("TABLE DATA public data_encryption_manifest")) {
+    throw new Error(
+      "This backup predates user-data encryption and cannot be restored safely.",
+    );
+  }
   await runPostgresCommand(pgRestorePath, [
     "--exit-on-error",
     "--clean",
@@ -113,6 +124,31 @@ export async function restoreDatabaseBackup(filePath: string) {
     "--single-transaction",
     filePath,
   ]);
+}
+
+export async function purgeLegacyDatabaseBackups() {
+  await mkdir(databaseBackupDirectory, { recursive: true, mode: 0o700 });
+  const markerPath = join(databaseBackupDirectory, ".user-data-encryption-v2");
+  try {
+    await readFile(markerPath);
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  const entries = await readdir(databaseBackupDirectory, {
+    withFileTypes: true,
+  });
+  for (const entry of entries) {
+    if (entry.isFile() && /^amadeus-.*\.dump$/.test(entry.name)) {
+      await rm(join(databaseBackupDirectory, entry.name));
+    }
+  }
+  try {
+    await writeFile(markerPath, "user-data-v2\n", { flag: "wx", mode: 0o600 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
 }
 
 export async function createRestoreUploadPath() {

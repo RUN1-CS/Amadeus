@@ -69,6 +69,8 @@ docker compose logs -f
 ## Configuration
 
 Copy `.env.example` to `.env` and set the required database and ComfyUI web credentials.
+Generate `DATA_ENCRYPTION_KEY` with `openssl rand -base64 32`; keep it stable
+and secret, because losing or changing it makes encrypted user data unavailable.
 The server connects to ComfyUI through `COMFYUI_BASE_URL` (the Compose default is
 `http://comfyui:8188`). `COMFYUI_NEGATIVE_PROMPT` provides the administrator's
 negative prompt for administration purposes; the user can still add some.

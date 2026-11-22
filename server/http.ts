@@ -34,10 +34,16 @@ import {
   isAdmin,
   getAiModelAccess,
   setAiModelEnabled,
+  deleteAccount,
+  reconcileUsersAfterRestore,
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
 import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
-import { getCachedUserBySession, invalidateUserCache } from "./sessions.js";
+import {
+  clearUserCache,
+  getCachedUserBySession,
+  invalidateUserCache,
+} from "./sessions.js";
 import { getModels, loadModels } from "./ai.js";
 import { getErrorType, logger } from "./logger.js";
 import {
@@ -366,9 +372,14 @@ async function handleRequest(
       const body = await readJson(request);
       const username = typeof body.username === "string" ? body.username : "";
       const password = typeof body.password === "string" ? body.password : "";
-      if (!username || password.length < 8) {
+      if (
+        !username.trim() ||
+        Array.from(username.trim()).length > 50 ||
+        password.length < 8
+      ) {
         sendJson(response, 400, {
-          error: "Use a username and a password of at least 8 characters.",
+          error:
+            "Use a username of at most 50 characters and a password of at least 8 characters.",
         });
         return;
       }
@@ -422,14 +433,16 @@ async function handleRequest(
       const aboutMe = typeof body.aboutMe === "string" ? body.aboutMe : "";
       const customBehavior =
         typeof body.customBehavior === "string" ? body.customBehavior : "";
+      const usernameLength = Array.from(username.trim()).length;
       if (
-        !username ||
+        !username.trim() ||
+        usernameLength > 50 ||
         !currentPassword ||
         (newPassword && newPassword.length < 8)
       ) {
         sendJson(response, 400, {
           error:
-            "Enter a username, current password, and a valid new password.",
+            "Enter a username of 1 to 50 characters, your current password, and a valid new password.",
         });
         return;
       }
@@ -448,6 +461,26 @@ async function handleRequest(
       // The system prompt uses aboutMe/customBehavior, so cached profiles must not go stale.
       invalidateUserCache(user.id);
       sendJson(response, 200, { user: updatedUser });
+      return;
+    }
+
+    if (request.method === "POST" && path === "/api/auth/delete") {
+      const user = await requireUser(request, response);
+      if (!user) return;
+      const body = await readJson(request);
+      const currentPassword =
+        typeof body.currentPassword === "string" ? body.currentPassword : "";
+      if (!currentPassword) {
+        sendJson(response, 400, { error: "Enter your current password." });
+        return;
+      }
+      const deleted = await deleteAccount(user.id, currentPassword);
+      if (!deleted) {
+        sendJson(response, 401, { error: "Current password is incorrect." });
+        return;
+      }
+      invalidateUserCache(user.id);
+      sendJson(response, 200, { deleted: true });
       return;
     }
 
@@ -517,6 +550,8 @@ async function handleRequest(
       try {
         await receiveBackupUpload(request, filePath);
         await restoreDatabaseBackup(filePath);
+        await reconcileUsersAfterRestore();
+        clearUserCache();
       } finally {
         await rm(filePath, { force: true });
       }
@@ -735,6 +770,13 @@ async function handleRequest(
     // Create a new conversation for the authenticated user.
     if (path === "/api/chats" && request.method === "POST") {
       const body = await readJson(request);
+      if (
+        typeof body.title === "string" &&
+        Array.from(body.title.trim()).length > 100
+      ) {
+        sendJson(response, 400, { error: "Chat name must be at most 100 characters." });
+        return;
+      }
       const chatId = await createChat(
         user.id,
         typeof body.title === "string" ? body.title : undefined,
@@ -760,8 +802,10 @@ async function handleRequest(
     if (chatMatch && request.method === "PATCH") {
       const body = await readJson(request);
       const title = typeof body.title === "string" ? body.title.trim() : "";
-      if (!title) {
-        sendJson(response, 400, { error: "Chat name cannot be empty." });
+      if (!title || Array.from(title).length > 100) {
+        sendJson(response, 400, {
+          error: "Chat name must contain 1 to 100 characters.",
+        });
         return;
       }
       const chat = await renameChat(user.id, Number(chatMatch[1]), title);

@@ -88,3 +88,6 @@ export const databaseBackupTimeoutMs =
   Number.isSafeInteger(configuredBackupTimeout) && configuredBackupTimeout > 0
     ? configuredBackupTimeout
     : defaultBackupTimeoutMs;
+
+// User data encryption
+export const dataEncryptionKey = process.env.DATA_ENCRYPTION_KEY ?? "";

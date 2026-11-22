@@ -18,6 +18,9 @@ const currentPassword = ref("");
 const newPassword = ref("");
 const saveError = ref("");
 const saved = ref(false);
+const deletePassword = ref("");
+const deleteError = ref("");
+const deleting = ref(false);
 const theme = ref<Theme>(loadTheme());
 
 // Update one color slot and save it immediately for the next browser session.
@@ -51,6 +54,27 @@ async function saveAccount() {
     window.location.reload();
   } catch (error) {
     saveError.value = error instanceof Error ? error.message : "Could not update account.";
+  }
+}
+
+async function deleteAccount() {
+  deleteError.value = "";
+  if (
+    !window.confirm(
+      "Delete your account and permanently erase its encryption key? Backups will retain only unreadable ciphertext.",
+    )
+  ) {
+    return;
+  }
+
+  deleting.value = true;
+  try {
+    await store.deleteCurrentAccount(deletePassword.value);
+    await router.replace("/auth");
+  } catch (error) {
+    deleteError.value = error instanceof Error ? error.message : "Could not delete the account.";
+  } finally {
+    deleting.value = false;
   }
 }
 </script>
@@ -217,6 +241,35 @@ async function saveAccount() {
               Memory settings
             </button>
           </form>
+
+          <section class="border-t border-[#eeeae3] py-6">
+            <h2 class="text-sm font-bold text-[#853c2a]">Delete account</h2>
+            <p class="mt-1 text-sm text-[var(--theme-muted)]">
+              This permanently removes your account and destroys its encryption key. Copies in
+              database backups become unreadable.
+            </p>
+            <label class="mt-4 block text-sm font-semibold">
+              Current password
+              <input
+                v-model="deletePassword"
+                type="password"
+                required
+                autocomplete="current-password"
+                class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
+              />
+            </label>
+            <p v-if="deleteError" role="alert" class="mt-3 text-sm text-[#853c2a]">
+              {{ deleteError }}
+            </p>
+            <button
+              type="button"
+              class="mt-4 rounded-lg border border-[#e7b6a4] px-4 py-2.5 text-sm font-bold text-[#853c2a] hover:bg-[#f9e4dc] disabled:opacity-50"
+              :disabled="deleting || !deletePassword"
+              @click="deleteAccount"
+            >
+              {{ deleting ? "Deleting…" : "Permanently delete account" }}
+            </button>
+          </section>
         </div>
       </div>
     </section>

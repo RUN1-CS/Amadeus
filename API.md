@@ -83,6 +83,7 @@ Request:
 Rules:
 
 - `username` must be a non-empty string.
+- `username` must be at most 50 characters after trimming.
 - `password` must contain at least 8 characters.
 - The username is trimmed and stored in lowercase.
 
@@ -184,8 +185,11 @@ migration has run, grant membership to a known account with:
 
 ```sql
 INSERT INTO user_admins (user_id)
-SELECT id FROM users WHERE username = 'example';
+SELECT id FROM users WHERE id = 123;
 ```
+
+Usernames are encrypted at rest; use the Admin dashboard to find the account
+ID rather than querying the encrypted `users.username` column.
 
 The `isAdmin` property in public user responses reflects current membership.
 
@@ -210,9 +214,31 @@ The routes require administrator membership. Backup operations and their
 settings are configured with `DATABASE_BACKUPS_ENABLED`,
 `DATABASE_BACKUP_DIRECTORY`, `DATABASE_BACKUP_RETENTION_DAYS`, `PG_DUMP_PATH`, `PG_RESTORE_PATH`,
 `DATABASE_BACKUP_MAX_UPLOAD_BYTES`, and `DATABASE_BACKUP_TIMEOUT_MS` in
-`.env`. Old generated dumps are removed during a manual backup after the
-configured retention period; set retention days to `0` to keep them
-indefinitely. The server image includes PostgreSQL 17 client tools by default.
+`.env`. Old generated dumps are removed after the configured retention period;
+set retention days to `0` to keep them indefinitely. The server image includes
+PostgreSQL 17 client tools by default.
+
+### User-data encryption and account deletion
+
+Set `DATA_ENCRYPTION_KEY` to a base64-encoded 32-byte key (for example, generate
+one with `openssl rand -base64 32`). Keep it stable and secret; changing or
+losing it makes encrypted user data permanently unavailable. At startup,
+existing user profiles, conversation titles, messages, attachments, memories,
+and embeddings are encrypted with per-user AES-256-GCM keys. Username lookup
+uses a keyed digest, and session tokens are stored as hashes.
+
+`POST /api/auth/delete` requires an active session and the current password.
+It deletes the user's key-table entry and active account data in one database
+transaction. Backup dumps deliberately exclude `user_data_keys`, so deleted
+users' data in a dump remains ciphertext without a decryption key. Old
+application-generated dumps are purged once during encryption deployment, and
+restore rejects dumps without the encryption manifest.
+
+The key table is intentionally not part of database dumps. Restoring requires
+the original PostgreSQL database to retain that table and its keys; a dump by
+itself cannot recover encrypted user data into a fresh database. Keep the
+PostgreSQL data volume and `DATA_ENCRYPTION_KEY` protected independently.
+Encryption covers user content, not relational IDs or timestamps.
 
 ### List all users (admin)
 
@@ -274,6 +300,19 @@ Responses:
 - `400` if required fields or the new password are invalid.
 - `401 {"error":"Current password is incorrect."}`.
 - `409` if the new username is already taken.
+
+### Delete the account
+
+```http
+POST /api/auth/delete
+Authorization: Bearer <session-token>
+Content-Type: application/json
+```
+
+Request: `{ "currentPassword": "your-current-password" }`. A successful
+request returns `{ "deleted": true }`; the route deletes the account, its
+active records, and its per-user encryption key in one transaction. Copies in
+encrypted database backups remain unreadable.
 
 ---
 
