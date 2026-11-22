@@ -6,6 +6,14 @@ import {
   embeddingModel,
   ollamaBaseUrl,
   reservedOutputTokens,
+  maxMemoryResults,
+  maxMemoryContextLength,
+  maxToolRounds,
+  maxToolResultChars,
+  maxToolErrorChars,
+  minEvidenceChars,
+  tokensPerImage,
+  keepAlive,
 } from "./config.js";
 import { searchSimilarMessages } from "./db.js";
 import { SavedMessage } from "./types.js";
@@ -14,16 +22,6 @@ import type { ClientMessage } from "./protocol.js";
 import { callPlaywrightTool, getPlaywrightTools } from "./playwright.js";
 
 export const ollama = new Ollama({ host: ollamaBaseUrl });
-
-const maxMemoryResults = 6;
-const maxMemoryContextLength = 6_000;
-const maxToolRounds = 8;
-const maxToolResultChars = 12_000;
-const maxToolErrorChars = 500;
-const minEvidenceChars = 400;
-const tokensPerImage = 600;
-// Keep chat and embedding models resident so they don't evict each other between calls.
-const keepAlive = "30m";
 
 type OllamaModels = unknown[];
 

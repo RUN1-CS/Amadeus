@@ -24,10 +24,7 @@ import { getCachedUserBySession } from "./sessions.js";
 import type { PublicUser } from "./types.js";
 import type { ClientMessage } from "./protocol.js";
 import { generateImage } from "./comfyui.js";
-
-// Images arrive base64-encoded over this socket, so allow room for them but not the 100 MiB default.
-const maxPayloadBytes = 25 * 1024 * 1024;
-const heartbeatMs = 30_000;
+import { maxPayloadBytes, heartbeatMs } from "./config.js";
 
 // Session token per socket; the user is re-resolved (cheaply, via cache) on each message
 // so profile changes and expired sessions take effect without reconnecting.
