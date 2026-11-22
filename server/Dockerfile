@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm ci
 
 COPY *.ts tsconfig.json ./
+COPY db ./db
 RUN npm run build
 
 FROM node:24-bookworm-slim
@@ -19,6 +20,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 RUN npx playwright install --with-deps firefox
 
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/db/migrations ./dist/db/migrations
 
 EXPOSE 8080
 

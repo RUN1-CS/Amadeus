@@ -1,0 +1,9 @@
+# Node
+node_modules/
+
+# TypeScript
+dist/
+
+# Editor Configs
+.editorconfig
+.vscode/
