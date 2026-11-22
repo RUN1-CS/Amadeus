@@ -25,10 +25,13 @@ import {
   deleteMemory,
   getMemoriesByUserId,
   createMemory,
+  getAdminOverview,
+  isAdmin,
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
 import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
 import { getCachedUserBySession, invalidateUserCache } from "./sessions.js";
+import { getModels } from "./ai.js";
 
 // An error that carries the HTTP status the client should see.
 class HttpError extends Error {
@@ -277,6 +280,17 @@ function isSafeSubfolder(subfolder: string) {
   );
 }
 
+function getOllamaModelNames(models: unknown[]) {
+  return models.flatMap((model) =>
+    typeof model === "object" &&
+    model !== null &&
+    "name" in model &&
+    typeof model.name === "string"
+      ? [model.name]
+      : [],
+  );
+}
+
 // Route each HTTP request to the right auth, account, chat, or message handler.
 // It validates the method/path, enforces auth for protected endpoints, and sends
 // JSON responses for both success and error cases.
@@ -397,6 +411,50 @@ async function handleRequest(
     // From here, every route requires a valid login session.
     const user = await requireUser(request, response);
     if (!user) return;
+
+    if (path === "/api/admin/overview" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const [overview, ollamaModels] = await Promise.all([
+        getAdminOverview(),
+        getModels(),
+      ]);
+      const comfyModels = getComfyModels();
+      const ollamaNames = getOllamaModelNames(ollamaModels.models);
+      sendJson(response, 200, {
+        ...overview,
+        services: {
+          ollama: {
+            status: ollamaModels.error
+              ? ollamaNames.length
+                ? "degraded"
+                : "unavailable"
+              : ollamaNames.length
+                ? "available"
+                : "unavailable",
+            models: ollamaNames,
+            error: ollamaModels.error,
+          },
+          comfyui: {
+            status: comfyModels.error
+              ? comfyModels.models.length
+                ? "degraded"
+                : "unavailable"
+              : comfyModels.models.length
+                ? "available"
+                : "unavailable",
+            models: comfyModels.models,
+            error: comfyModels.error,
+          },
+        },
+      });
+      return;
+    }
 
     if (path === "/api/comfy/models" && request.method === "GET") {
       if (getComfyModels().models.length === 0) await loadComfyModels();

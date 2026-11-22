@@ -51,7 +51,8 @@ Authentication responses and account responses use this shape:
   "id": 1,
   "username": "example",
   "aboutMe": "",
-  "customBehavior": ""
+  "customBehavior": "",
+  "isAdmin": false
 }
 ```
 
@@ -95,7 +96,8 @@ Responses:
       "id": 1,
       "username": "example",
       "aboutMe": "",
-      "customBehavior": ""
+      "customBehavior": "",
+      "isAdmin": false
     },
     "token": "<session-token>"
   }
@@ -129,7 +131,8 @@ Responses:
       "id": 1,
       "username": "example",
       "aboutMe": "",
-      "customBehavior": ""
+      "customBehavior": "",
+      "isAdmin": false
     },
     "token": "<session-token>"
   }
@@ -155,13 +158,36 @@ Response: `200`
     "id": 1,
     "username": "example",
     "aboutMe": "",
-    "customBehavior": ""
+    "customBehavior": "",
+    "isAdmin": false
   }
 }
 ```
 
 This route returns `401 {"error":"Authentication required."}` if the token is
 missing, unknown, or expired.
+
+### Admin overview
+
+```http
+GET /api/admin/overview
+Authorization: Bearer <session-token>
+```
+
+Returns application-wide account, conversation, message, and memory counts,
+the eight most recently registered usernames, and the latest cached Ollama and
+ComfyUI model-discovery status. The route requires an active session and an
+entry for the user in `user_admins`; other signed-in users receive `403`.
+
+Admin membership is not assigned automatically. After the `002_user_admins.sql`
+migration has run, grant membership to a known account with:
+
+```sql
+INSERT INTO user_admins (user_id)
+SELECT id FROM users WHERE username = 'example';
+```
+
+The `isAdmin` property in public user responses reflects current membership.
 
 ### Update the account
 
