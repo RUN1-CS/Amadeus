@@ -91,3 +91,16 @@ export const databaseBackupTimeoutMs =
 
 // User data encryption
 export const dataEncryptionKey = process.env.DATA_ENCRYPTION_KEY ?? "";
+
+// Login
+export const loginMaxFailures = 10;
+export const loginWindowMs = 15 * 60 * 1000;
+
+// Registration
+export const registerMaxAttempts = 10;
+export const registerWindowMs = 60 * 60 * 1000;
+
+// File uploads
+export const maxUploadBytes = 10 * 1024 * 1024;
+export const maxUploadFiles = 5;
+export const maxExtractedTextChars = 50_000;

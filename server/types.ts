@@ -78,3 +78,10 @@ export type PersistedLog = {
   event: string;
   metadata: Record<string, string | number | boolean>;
 };
+
+export type UploadedFile = {
+  name: string;
+  kind: "image" | "pdf" | "file";
+  content?: string;
+  data?: string;
+};
