@@ -19,16 +19,45 @@ This project provides a simple chat interface and supporting client/server logic
 
 ```text
 Amadeus/
-├── server              # Backend server
-├── sql                 # SQL stuff
-└── web                 # Frontend web
-    ├── public          # Public part of the web (favicon)
-    └── src             # Source files
-        ├── router      # Router
-        ├── services    # Services
-        ├── stores      # Scripts
-        ├── types       # Types... for TYPEscript
-        └── views       # Pages outside App.vue
+├── models/                  # Local AI models
+├── output/                  # Generated output
+│
+├── server/                  # Backend (Node.js + TypeScript)
+│   ├── classes/              # Shared classes
+│   ├── db/                   # Database layer
+│   │   └── migrations/       # SQL schema migrations
+│   ├── http/                 # HTTP route handlers
+│   ├── ai.ts                 # AI model integration
+│   ├── backups.ts            # Database backup management
+│   ├── comfyui.ts            # ComfyUI integration
+│   ├── config.ts             # Environment and server configuration
+│   ├── data-encryption.ts    # User data encryption
+│   ├── logger.ts             # Application logging
+│   ├── protocol.ts           # Communication protocol
+│   ├── websocket.ts          # WebSocket communication
+│   └── index.ts              # Backend entry point
+│
+├── web/                      # Frontend (Vue + TypeScript)
+│   ├── public/               # Static assets
+│   └── src/
+│       ├── components/       # Reusable UI components
+│       │   ├── admin/        # Administration panels
+│       │   ├── chat/         # Chat interface components
+│       │   └── common/       # Shared components
+│       ├── composables/      # Reusable Vue composition logic
+│       ├── router/           # Application routing
+│       ├── services/         # API and frontend services
+│       ├── stores/           # Pinia state management
+│       ├── types/            # Frontend TypeScript definitions
+│       ├── views/            # Application pages
+│       ├── App.vue           # Root Vue component
+│       └── main.ts           # Frontend entry point
+│
+├── API.md                    # API documentation
+├── compose.yml               # Docker Compose configuration
+├── .env.example              # Environment configuration template
+├── LICENSE
+└── readme.md
 ```
 
 ## Getting Started
