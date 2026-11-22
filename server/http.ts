@@ -6,6 +6,9 @@ import {
 } from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { Transform } from "node:stream";
+import { createWriteStream } from "node:fs";
+import { rm } from "node:fs/promises";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import Busboy from "busboy";
 import { PDFParse } from "pdf-parse";
@@ -37,6 +40,16 @@ import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
 import { getCachedUserBySession, invalidateUserCache } from "./sessions.js";
 import { getModels, loadModels } from "./ai.js";
 import { getErrorType, logger } from "./logger.js";
+import {
+  createDatabaseBackup,
+  createRestoreUploadPath,
+  restoreDatabaseBackup,
+  streamBackup,
+} from "./backups.js";
+import {
+  databaseBackupMaxUploadBytes,
+  databaseBackupsEnabled,
+} from "./config.js";
 
 // An error that carries the HTTP status the client should see.
 class HttpError extends Error {
@@ -52,6 +65,7 @@ const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": allowedOrigin,
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  "Access-Control-Expose-Headers": "Content-Disposition",
   // Let browsers cache the preflight instead of sending one before every API call.
   "Access-Control-Max-Age": "86400",
   ...(allowedOrigin === "*" ? {} : { Vary: "Origin" }),
@@ -147,6 +161,30 @@ const registerWindowMs = 60 * 60 * 1000;
 const maxUploadBytes = 10 * 1024 * 1024;
 const maxUploadFiles = 5;
 const maxExtractedTextChars = 50_000;
+
+async function receiveBackupUpload(request: IncomingMessage, filePath: string) {
+  const contentLength = Number(request.headers["content-length"]);
+  if (Number.isFinite(contentLength) && contentLength > databaseBackupMaxUploadBytes) {
+    request.resume();
+    throw new HttpError(413, "Backup file exceeds the configured upload limit.");
+  }
+
+  let size = 0;
+  const limit = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      size += chunk.length;
+      if (size > databaseBackupMaxUploadBytes) {
+        callback(
+          new HttpError(413, "Backup file exceeds the configured upload limit."),
+        );
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
+  await pipeline(request, limit, createWriteStream(filePath, { flags: "w" }));
+  if (size === 0) throw new HttpError(400, "Backup file is empty.");
+}
 
 type UploadedFile = {
   name: string;
@@ -416,6 +454,75 @@ async function handleRequest(
     // From here, every route requires a valid login session.
     const user = await requireUser(request, response);
     if (!user) return;
+
+    if (path === "/api/admin/backups" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+      sendJson(response, 200, {
+        enabled: databaseBackupsEnabled,
+        maxUploadBytes: databaseBackupMaxUploadBytes,
+      });
+      return;
+    }
+
+    if (path === "/api/admin/backups" && request.method === "POST") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+      if (!databaseBackupsEnabled) {
+        sendJson(response, 503, { error: "Database backups are disabled." });
+        return;
+      }
+
+      const backup = await createDatabaseBackup();
+      response.writeHead(200, {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${backup.filename}"`,
+        "Content-Length": backup.size,
+        "Cache-Control": "no-store",
+        ...corsHeaders,
+      });
+      await pipeline(await streamBackup(backup.filePath), response);
+      return;
+    }
+
+    if (path === "/api/admin/backups/restore" && request.method === "POST") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+      if (!databaseBackupsEnabled) {
+        sendJson(response, 503, { error: "Database backups are disabled." });
+        return;
+      }
+      if (
+        !request.headers["content-type"]?.startsWith("application/octet-stream")
+      ) {
+        sendJson(response, 415, {
+          error: "Upload the backup as application/octet-stream.",
+        });
+        return;
+      }
+
+      const filePath = await createRestoreUploadPath();
+      try {
+        await receiveBackupUpload(request, filePath);
+        await restoreDatabaseBackup(filePath);
+      } finally {
+        await rm(filePath, { force: true });
+      }
+      sendJson(response, 200, { restored: true });
+      return;
+    }
 
     if (path === "/api/admin/overview" && request.method === "GET") {
       if (!(await isAdmin(user.id))) {

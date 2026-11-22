@@ -189,6 +189,31 @@ SELECT id FROM users WHERE username = 'example';
 
 The `isAdmin` property in public user responses reflects current membership.
 
+### Database backups (admin)
+
+```http
+GET /api/admin/backups
+POST /api/admin/backups
+POST /api/admin/backups/restore
+Authorization: Bearer <session-token>
+```
+
+The status route reports whether backup operations are enabled and the maximum
+restore upload size. `POST /api/admin/backups` runs `pg_dump` in custom format
+and returns the dump as a download; a copy is retained in the configured backup
+directory. Restore accepts a custom-format dump as the raw request body with
+`Content-Type: application/octet-stream`. It runs `pg_restore` with cleanup
+inside a single transaction, so a failed restore is rolled back. Restoring
+replaces the current database contents.
+
+The routes require administrator membership. Backup operations and their
+settings are configured with `DATABASE_BACKUPS_ENABLED`,
+`DATABASE_BACKUP_DIRECTORY`, `DATABASE_BACKUP_RETENTION_DAYS`, `PG_DUMP_PATH`, `PG_RESTORE_PATH`,
+`DATABASE_BACKUP_MAX_UPLOAD_BYTES`, and `DATABASE_BACKUP_TIMEOUT_MS` in
+`.env`. Old generated dumps are removed during a manual backup after the
+configured retention period; set retention days to `0` to keep them
+indefinitely. The server image includes PostgreSQL 17 client tools by default.
+
 ### List all users (admin)
 
 ```http

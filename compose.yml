@@ -26,6 +26,15 @@ services:
       COMFYUI_BASE_URL: ${COMFYUI_BASE_URL:-http://comfyui:8188}
       COMFYUI_DEFAULT_NEGATIVE_PROMPT: ${COMFYUI_DEFAULT_NEGATIVE_PROMPT:-}
       DATABASE_URL: postgres://${POSTGRES_USER:-amadeus}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-amadeus}
+      DATABASE_BACKUPS_ENABLED: ${DATABASE_BACKUPS_ENABLED:-true}
+      DATABASE_BACKUP_DIRECTORY: ${DATABASE_BACKUP_DIRECTORY:-/backups}
+      DATABASE_BACKUP_RETENTION_DAYS: ${DATABASE_BACKUP_RETENTION_DAYS:-30}
+      PG_DUMP_PATH: ${PG_DUMP_PATH:-pg_dump}
+      PG_RESTORE_PATH: ${PG_RESTORE_PATH:-pg_restore}
+      DATABASE_BACKUP_MAX_UPLOAD_BYTES: ${DATABASE_BACKUP_MAX_UPLOAD_BYTES:-1073741824}
+      DATABASE_BACKUP_TIMEOUT_MS: ${DATABASE_BACKUP_TIMEOUT_MS:-1800000}
+    volumes:
+      - database-backups:${DATABASE_BACKUP_DIRECTORY:-/backups}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -79,6 +88,7 @@ services:
 
 volumes:
   postgres-data:
+  database-backups:
   output:
   input:
 
