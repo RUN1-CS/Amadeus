@@ -5,5 +5,7 @@ CREATE TABLE IF NOT EXISTS user_admins (
     granted_by BIGINT REFERENCES users(id) ON DELETE SET NULL
 );
 
+-- The first user is admin by default.
 INSERT INTO user_admins (user_id, granted_at, granted_by)
-1, NOW(), NULL;
+SELECT id, NOW(), NULL FROM users WHERE id = 1
+ON CONFLICT (user_id) DO NOTHING;
