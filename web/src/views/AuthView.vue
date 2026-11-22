@@ -12,10 +12,16 @@ const store = useOllamaStore();
 const { authError, authLoading } = storeToRefs(store);
 const username = ref("");
 const password = ref("");
+const confirmPassword = ref("");
 const isRegister = computed(() => route.path === "/register");
+const passwordMismatch = computed(
+  () => isRegister.value && confirmPassword.value.length > 0 && password.value !== confirmPassword.value,
+);
 
 // Sign the user in or create an account and then send them to the main chat.
 async function submit() {
+  if (passwordMismatch.value) return;
+
   try {
     if (isRegister.value) await store.registerUser(username.value, password.value);
     else await store.loginUser(username.value, password.value);
@@ -78,6 +84,21 @@ async function submit() {
             class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
           />
         </label>
+        <label v-if="isRegister" class="block text-sm font-semibold">
+          Confirm password
+          <input
+            v-model="confirmPassword"
+            type="password"
+            autocomplete="new-password"
+            minlength="8"
+            required
+            :aria-invalid="passwordMismatch"
+            class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
+          />
+        </label>
+        <p v-if="passwordMismatch" class="text-sm text-[#9e422c]" role="alert">
+          Passwords do not match.
+        </p>
         <p v-if="authError" class="rounded-lg bg-[#f9e4dc] px-3 py-2 text-sm text-[#9e422c]">
           {{ authError }}
         </p>
