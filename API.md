@@ -189,6 +189,20 @@ SELECT id FROM users WHERE username = 'example';
 
 The `isAdmin` property in public user responses reflects current membership.
 
+### List all users (admin)
+
+```http
+GET /api/admin/users
+GET /api/admin/users?beforeId=120
+Authorization: Bearer <session-token>
+```
+
+Returns at most 30 user records per request, ordered by descending account ID.
+Pass the returned `nextCursor` as `beforeId` to fetch the next batch; a `null`
+cursor means there are no more users. Records contain only account ID,
+username, join date, and admin status. The route requires an active admin
+session and returns `403` to other signed-in users.
+
 ### Update the account
 
 ```http

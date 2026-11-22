@@ -173,6 +173,41 @@ export async function getAdminOverview() {
   return { stats: stats.rows[0]!, recentUsers: recentUsers.rows };
 }
 
+// Fetch one bounded batch of account metadata using a descending ID cursor.
+export async function getAdminUsers(beforeId?: string) {
+  const pageSize = 30;
+  const result = beforeId
+    ? await pool.query<{
+        id: string;
+        username: string;
+        createdAt: string;
+        isAdmin: boolean;
+      }>(
+        `SELECT users.id::text AS id, username, created_at AS "createdAt",
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin"
+         FROM users WHERE users.id < $1::bigint
+         ORDER BY users.id DESC LIMIT $2`,
+        [beforeId, pageSize + 1],
+      )
+    : await pool.query<{
+        id: string;
+        username: string;
+        createdAt: string;
+        isAdmin: boolean;
+      }>(
+        `SELECT users.id::text AS id, username, created_at AS "createdAt",
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin"
+         FROM users ORDER BY users.id DESC LIMIT $1`,
+        [pageSize + 1],
+      );
+  const hasMore = result.rows.length > pageSize;
+  const users = result.rows.slice(0, pageSize);
+  return {
+    users,
+    nextCursor: hasMore ? users.at(-1)?.id ?? null : null,
+  };
+}
+
 // Return the user's recent conversations sorted newest-first.
 export async function listChats(userId: number): Promise<Chat[]> {
   const result = await pool.query<Chat>(

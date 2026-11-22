@@ -26,6 +26,7 @@ import {
   getMemoriesByUserId,
   createMemory,
   getAdminOverview,
+  getAdminUsers,
   isAdmin,
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
@@ -453,6 +454,23 @@ async function handleRequest(
           },
         },
       });
+      return;
+    }
+
+    if (path === "/api/admin/users" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const beforeId = url.searchParams.get("beforeId") ?? undefined;
+      if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
+        sendJson(response, 400, { error: "Invalid user pagination cursor." });
+        return;
+      }
+      sendJson(response, 200, await getAdminUsers(beforeId));
       return;
     }
 
