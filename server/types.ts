@@ -71,3 +71,10 @@ export type McpTool = {
   description?: string;
   inputSchema?: Record<string, unknown>;
 };
+
+export type PersistedLog = {
+  loggedAt: Date;
+  level: string;
+  event: string;
+  metadata: Record<string, string | number | boolean>;
+};

@@ -3,6 +3,8 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { Pool } from "pg";
 import migrate from "./db/migrate.js";
+import { getErrorType, logger, setDatabaseLogWriter } from "./logger.js";
+import { logCleanupIntervalMs, logRetentionMs } from "./config.js";
 
 import type {
   MemoryRow,
@@ -18,9 +20,38 @@ import type {
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+async function pruneServerLogs() {
+  try {
+    await pool.query("DELETE FROM server_logs WHERE logged_at < $1", [
+      new Date(Date.now() - logRetentionMs),
+    ]);
+  } catch (error) {
+    logger.error(
+      {
+        event: "database.log_retention_cleanup_failed",
+        errorType: getErrorType(error),
+      },
+      "Could not delete expired server logs",
+    );
+  }
+}
+
 // Apply additive schema changes to databases created before the current schema.
 export async function initializeDatabase() {
   await migrate(pool);
+  setDatabaseLogWriter(async ({ loggedAt, level, event, metadata }) => {
+    await pool.query(
+      `INSERT INTO server_logs (logged_at, level, event, metadata)
+       VALUES ($1, $2, $3, $4)`,
+      [loggedAt, level, event, JSON.stringify(metadata)],
+    );
+  });
+  await pruneServerLogs();
+  const cleanup = setInterval(
+    () => void pruneServerLogs(),
+    logCleanupIntervalMs,
+  );
+  cleanup.unref();
 }
 
 // Strip sensitive fields down to the public user shape returned to the client.
@@ -258,6 +289,53 @@ export async function getAdminUsers(beforeId?: string) {
   return {
     users,
     nextCursor: hasMore ? (users.at(-1)?.id ?? null) : null,
+  };
+}
+
+export async function getServerLogs(filters: {
+  level?: string;
+  event?: string;
+  beforeId?: string;
+}) {
+  const pageSize = 100;
+  const conditions: string[] = [];
+  const values: string[] = [];
+
+  if (filters.level) {
+    values.push(filters.level);
+    conditions.push(`level = $${values.length}`);
+  }
+  if (filters.event) {
+    values.push(filters.event);
+    conditions.push(
+      `POSITION(LOWER($${values.length}) IN LOWER(event)) > 0`,
+    );
+  }
+  if (filters.beforeId) {
+    values.push(filters.beforeId);
+    conditions.push(`id < $${values.length}::bigint`);
+  }
+  values.push(String(pageSize + 1));
+
+  const result = await pool.query<{
+    id: string;
+    loggedAt: string;
+    level: string;
+    event: string;
+    metadata: Record<string, string | number | boolean>;
+  }>(
+    `SELECT id::text, logged_at AS "loggedAt", level, event, metadata
+     FROM server_logs
+     ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+     ORDER BY id DESC
+     LIMIT $${values.length}`,
+    values,
+  );
+  const hasMore = result.rows.length > pageSize;
+  const logs = result.rows.slice(0, pageSize);
+  return {
+    logs,
+    nextCursor: hasMore ? logs.at(-1)?.id ?? null : null,
   };
 }
 

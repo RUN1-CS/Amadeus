@@ -83,6 +83,14 @@ separate port and the web service proxies `/api` requests to the server; bind
 the web port to localhost as well if you also want to prevent LAN access to the
 API through that proxy.
 
+Server logs are structured JSON written to standard output by Pino. Set
+`LOG_LEVEL` to `fatal`, `error`, `warn`, `info` (default), `debug`, or `trace` to
+adjust verbosity. The same events are stored in the `server_logs` PostgreSQL
+table and deleted after 30 days. Persisted records include only the log level,
+timestamp, event name, and an allowlist of operational metadata; request bodies,
+chat content, credentials, tokens, and browser tool arguments/results are not
+stored.
+
 ## Server API
 
 See [API.md](./API.md) for the HTTP and WebSocket endpoint reference, including

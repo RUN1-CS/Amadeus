@@ -27,6 +27,7 @@ import {
   createMemory,
   getAdminOverview,
   getAdminUsers,
+  getServerLogs,
   isAdmin,
   getAiModelAccess,
   setAiModelEnabled,
@@ -35,6 +36,7 @@ import { getErrorMessage } from "./errors.js";
 import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
 import { getCachedUserBySession, invalidateUserCache } from "./sessions.js";
 import { getModels, loadModels } from "./ai.js";
+import { getErrorType, logger } from "./logger.js";
 
 // An error that carries the HTTP status the client should see.
 class HttpError extends Error {
@@ -476,6 +478,35 @@ async function handleRequest(
       return;
     }
 
+    if (path === "/api/admin/logs" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const level = url.searchParams.get("level") ?? undefined;
+      const event = url.searchParams.get("event")?.trim() || undefined;
+      const beforeId = url.searchParams.get("beforeId") ?? undefined;
+      const levels = ["trace", "debug", "info", "warn", "error", "fatal"];
+      if (level && !levels.includes(level)) {
+        sendJson(response, 400, { error: "Invalid log level filter." });
+        return;
+      }
+      if (event && event.length > 120) {
+        sendJson(response, 400, { error: "Log event filter is too long." });
+        return;
+      }
+      if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
+        sendJson(response, 400, { error: "Invalid log pagination cursor." });
+        return;
+      }
+
+      sendJson(response, 200, await getServerLogs({ level, event, beforeId }));
+      return;
+    }
+
     if (path === "/api/admin/models" && request.method === "GET") {
       if (!(await isAdmin(user.id))) {
         sendJson(response, 403, {
@@ -738,7 +769,10 @@ async function handleRequest(
       sendJson(response, 409, { error: "That username is already taken." });
       return;
     }
-    console.error("Request failed:", error);
+    logger.error(
+      { event: "http.request_failed", errorType: getErrorType(error) },
+      "HTTP request failed",
+    );
     sendJson(response, 500, {
       error:
         process.env.NODE_ENV === "production"
@@ -751,6 +785,15 @@ async function handleRequest(
 // Start the HTTP server with the route dispatcher attached.
 export function createHttpServer() {
   return createServer((request, response) => {
+    const startedAt = Date.now();
+    response.once("finish", () => {
+      logger.info({
+        event: "http.request",
+        method: request.method,
+        statusCode: response.statusCode,
+        durationMs: Date.now() - startedAt,
+      });
+    });
     void handleRequest(request, response);
   });
 }

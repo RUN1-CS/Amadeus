@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
+import { getErrorType, logger } from "../logger.js";
 
 export async function migrate(pool: Pool): Promise<void> {
   await pool.query(
@@ -35,7 +36,7 @@ export async function migrate(pool: Pool): Promise<void> {
 
       await client.query(fs.readFileSync(path.join(dir, file), "utf8"));
       await client.query("INSERT INTO migrations (name) VALUES ($1)", [file]);
-      console.log(`Applied migration ${file}`);
+      logger.info({ event: "database.migration_applied", migration: file });
     }
 
     await client.query("COMMIT");
@@ -60,7 +61,10 @@ if (isMain) {
   });
   migrate(standalonePool)
     .catch((error: unknown) => {
-      console.error("Migration failed:", error);
+      logger.fatal(
+        { event: "database.migration_failed", errorType: getErrorType(error) },
+        "Migration failed",
+      );
       process.exitCode = 1;
     })
     .finally(async () => {
