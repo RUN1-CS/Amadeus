@@ -4,3 +4,6 @@ CREATE TABLE IF NOT EXISTS user_admins (
     granted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     granted_by BIGINT REFERENCES users(id) ON DELETE SET NULL
 );
+
+INSERT INTO user_admins (user_id, granted_at, granted_by)
+1, NOW(), NULL;
