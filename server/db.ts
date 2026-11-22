@@ -287,6 +287,53 @@ export async function getAdminUsers(beforeId?: string) {
   };
 }
 
+export async function getServerLogs(filters: {
+  level?: string;
+  event?: string;
+  beforeId?: string;
+}) {
+  const pageSize = 100;
+  const conditions: string[] = [];
+  const values: string[] = [];
+
+  if (filters.level) {
+    values.push(filters.level);
+    conditions.push(`level = $${values.length}`);
+  }
+  if (filters.event) {
+    values.push(filters.event);
+    conditions.push(
+      `POSITION(LOWER($${values.length}) IN LOWER(event)) > 0`,
+    );
+  }
+  if (filters.beforeId) {
+    values.push(filters.beforeId);
+    conditions.push(`id < $${values.length}::bigint`);
+  }
+  values.push(String(pageSize + 1));
+
+  const result = await pool.query<{
+    id: string;
+    loggedAt: string;
+    level: string;
+    event: string;
+    metadata: Record<string, string | number | boolean>;
+  }>(
+    `SELECT id::text, logged_at AS "loggedAt", level, event, metadata
+     FROM server_logs
+     ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""}
+     ORDER BY id DESC
+     LIMIT $${values.length}`,
+    values,
+  );
+  const hasMore = result.rows.length > pageSize;
+  const logs = result.rows.slice(0, pageSize);
+  return {
+    logs,
+    nextCursor: hasMore ? logs.at(-1)?.id ?? null : null,
+  };
+}
+
 // Return the user's recent conversations sorted newest-first.
 export async function listChats(userId: number): Promise<Chat[]> {
   const result = await pool.query<Chat>(

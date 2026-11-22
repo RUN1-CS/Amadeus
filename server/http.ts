@@ -27,6 +27,7 @@ import {
   createMemory,
   getAdminOverview,
   getAdminUsers,
+  getServerLogs,
   isAdmin,
   getAiModelAccess,
   setAiModelEnabled,
@@ -474,6 +475,35 @@ async function handleRequest(
         return;
       }
       sendJson(response, 200, await getAdminUsers(beforeId));
+      return;
+    }
+
+    if (path === "/api/admin/logs" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const level = url.searchParams.get("level") ?? undefined;
+      const event = url.searchParams.get("event")?.trim() || undefined;
+      const beforeId = url.searchParams.get("beforeId") ?? undefined;
+      const levels = ["trace", "debug", "info", "warn", "error", "fatal"];
+      if (level && !levels.includes(level)) {
+        sendJson(response, 400, { error: "Invalid log level filter." });
+        return;
+      }
+      if (event && event.length > 120) {
+        sendJson(response, 400, { error: "Log event filter is too long." });
+        return;
+      }
+      if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
+        sendJson(response, 400, { error: "Invalid log pagination cursor." });
+        return;
+      }
+
+      sendJson(response, 200, await getServerLogs({ level, event, beforeId }));
       return;
     }
 
