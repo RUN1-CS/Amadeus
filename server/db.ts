@@ -2,6 +2,7 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { Pool } from "pg";
+import migrate from "./db/migrate.js";
 
 import type {
   MemoryRow,
@@ -19,9 +20,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Apply additive schema changes to databases created before the current schema.
 export async function initializeDatabase() {
-  await pool.query(
-    "ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::JSONB",
-  );
+  await migrate(pool);
 }
 
 // Strip sensitive fields down to the public user shape returned to the client.
