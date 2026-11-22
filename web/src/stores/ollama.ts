@@ -222,6 +222,14 @@ export const useOllamaStore = defineStore("ollama", () => {
     user.value = response.user;
   }
 
+  async function deleteCurrentAccount(currentPassword: string) {
+    await api.request<{ deleted: boolean }>("/api/auth/delete", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword }),
+    });
+    logout();
+  }
+
   // Clear the in-memory session and close the socket when the user signs out.
   function logout() {
     clearTimeout(reconnectTimer);
@@ -631,6 +639,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     loginUser,
     registerUser,
     updateAccount,
+    deleteCurrentAccount,
     logout,
     loadChats,
     createNewChat,

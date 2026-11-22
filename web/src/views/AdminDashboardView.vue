@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { storeToRefs } from "pinia";
 import BackToChatButton from "@/components/common/BackToChatButton.vue";
 import AdminLogsPanel from "@/components/admin/AdminLogsPanel.vue";
+import AdminBackupsPanel from "@/components/admin/AdminBackupsPanel.vue";
 import AdminModelAccessPanel from "@/components/admin/AdminModelAccessPanel.vue";
 import AdminUsersPanel from "@/components/admin/AdminUsersPanel.vue";
 import { createApiClient } from "@/services/api";
@@ -120,6 +121,7 @@ onMounted(() => void loadOverview());
         <AdminUsersPanel :total-users="overview.stats.users" />
         <AdminModelAccessPanel />
         <AdminLogsPanel />
+        <AdminBackupsPanel />
 
         <div class="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section

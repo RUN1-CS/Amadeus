@@ -54,3 +54,53 @@ export const logRetentionMs = Number(
 export const logCleanupIntervalMs = Number(
   process.env.LOG_CLEANUP_INTERVAL_MS ?? 86400000,
 );
+
+// Database backups
+export const databaseBackupsEnabled =
+  process.env.DATABASE_BACKUPS_ENABLED !== "false";
+export const databaseBackupDirectory =
+  process.env.DATABASE_BACKUP_DIRECTORY ?? "/backups";
+export const pgDumpPath = process.env.PG_DUMP_PATH ?? "pg_dump";
+export const pgRestorePath = process.env.PG_RESTORE_PATH ?? "pg_restore";
+const defaultBackupRetentionDays = 30;
+const configuredBackupRetentionDays = Number(
+  process.env.DATABASE_BACKUP_RETENTION_DAYS ?? defaultBackupRetentionDays,
+);
+export const databaseBackupRetentionDays =
+  Number.isSafeInteger(configuredBackupRetentionDays) &&
+  configuredBackupRetentionDays >= 0
+    ? configuredBackupRetentionDays
+    : defaultBackupRetentionDays;
+const defaultBackupUploadLimit = 1024 * 1024 * 1024;
+const configuredBackupUploadLimit = Number(
+  process.env.DATABASE_BACKUP_MAX_UPLOAD_BYTES ?? defaultBackupUploadLimit,
+);
+export const databaseBackupMaxUploadBytes =
+  Number.isSafeInteger(configuredBackupUploadLimit) &&
+  configuredBackupUploadLimit > 0
+    ? configuredBackupUploadLimit
+    : defaultBackupUploadLimit;
+const defaultBackupTimeoutMs = 30 * 60 * 1000;
+const configuredBackupTimeout = Number(
+  process.env.DATABASE_BACKUP_TIMEOUT_MS ?? defaultBackupTimeoutMs,
+);
+export const databaseBackupTimeoutMs =
+  Number.isSafeInteger(configuredBackupTimeout) && configuredBackupTimeout > 0
+    ? configuredBackupTimeout
+    : defaultBackupTimeoutMs;
+
+// User data encryption
+export const dataEncryptionKey = process.env.DATA_ENCRYPTION_KEY ?? "";
+
+// Login
+export const loginMaxFailures = 10;
+export const loginWindowMs = 15 * 60 * 1000;
+
+// Registration
+export const registerMaxAttempts = 10;
+export const registerWindowMs = 60 * 60 * 1000;
+
+// File uploads
+export const maxUploadBytes = 10 * 1024 * 1024;
+export const maxUploadFiles = 5;
+export const maxExtractedTextChars = 50_000;

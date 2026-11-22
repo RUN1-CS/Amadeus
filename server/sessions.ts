@@ -37,3 +37,7 @@ export function invalidateUserCache(userId: number) {
     if (entry.user.id === userId) cache.delete(token);
   }
 }
+
+export function clearUserCache() {
+  cache.clear();
+}
