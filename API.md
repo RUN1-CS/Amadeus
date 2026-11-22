@@ -51,7 +51,8 @@ Authentication responses and account responses use this shape:
   "id": 1,
   "username": "example",
   "aboutMe": "",
-  "customBehavior": ""
+  "customBehavior": "",
+  "isAdmin": false
 }
 ```
 
@@ -95,7 +96,8 @@ Responses:
       "id": 1,
       "username": "example",
       "aboutMe": "",
-      "customBehavior": ""
+      "customBehavior": "",
+      "isAdmin": false
     },
     "token": "<session-token>"
   }
@@ -129,7 +131,8 @@ Responses:
       "id": 1,
       "username": "example",
       "aboutMe": "",
-      "customBehavior": ""
+      "customBehavior": "",
+      "isAdmin": false
     },
     "token": "<session-token>"
   }
@@ -155,13 +158,66 @@ Response: `200`
     "id": 1,
     "username": "example",
     "aboutMe": "",
-    "customBehavior": ""
+    "customBehavior": "",
+    "isAdmin": false
   }
 }
 ```
 
 This route returns `401 {"error":"Authentication required."}` if the token is
 missing, unknown, or expired.
+
+### Admin overview
+
+```http
+GET /api/admin/overview
+Authorization: Bearer <session-token>
+```
+
+Returns application-wide account, conversation, message, and memory counts,
+the eight most recently registered usernames, and the latest cached Ollama and
+ComfyUI model-discovery status. The route requires an active session and an
+entry for the user in `user_admins`; other signed-in users receive `403`.
+
+Admin membership is not assigned automatically. After the `002_user_admins.sql`
+migration has run, grant membership to a known account with:
+
+```sql
+INSERT INTO user_admins (user_id)
+SELECT id FROM users WHERE username = 'example';
+```
+
+The `isAdmin` property in public user responses reflects current membership.
+
+### List all users (admin)
+
+```http
+GET /api/admin/users
+GET /api/admin/users?beforeId=120
+Authorization: Bearer <session-token>
+```
+
+Returns at most 30 user records per request, ordered by descending account ID.
+Pass the returned `nextCursor` as `beforeId` to fetch the next batch; a `null`
+cursor means there are no more users. Records contain only account ID,
+username, join date, and admin status. The route requires an active admin
+session and returns `403` to other signed-in users.
+
+### Manage AI model access (admin)
+
+```http
+GET /api/admin/models
+PATCH /api/admin/models
+Authorization: Bearer <session-token>
+```
+
+The GET response lists the discovered Ollama and ComfyUI models separately,
+with an `enabled` flag for regular-user access, plus any discovery errors.
+Models are enabled by default unless their state has been explicitly changed.
+PATCH accepts `{ "modelType": "ollama" | "comfyui", "modelName": "...",
+"enabled": true | false }`. Only currently discovered models can be updated.
+Changes affect model lists served to regular users and are also enforced when a
+model is requested. Administrators can continue to use every model.
 
 ### Update the account
 

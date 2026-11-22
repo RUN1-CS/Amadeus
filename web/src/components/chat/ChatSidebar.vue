@@ -131,6 +131,15 @@ async function confirmDelete() {
         >
           Settings
         </button>
+        <template v-if="user?.isAdmin">
+          <span>·</span>
+          <button
+            class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
+            @click="router.push('/admin')"
+          >
+            Admin
+          </button>
+        </template>
         <span>·</span>
         <button class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]" @click="logout">
           Log out

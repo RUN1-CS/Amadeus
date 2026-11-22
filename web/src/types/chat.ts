@@ -4,6 +4,7 @@ export type User = {
   username: string;
   aboutMe: string;
   customBehavior: string;
+  isAdmin: boolean;
 };
 
 export type Chat = {

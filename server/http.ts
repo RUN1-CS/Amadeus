@@ -25,10 +25,16 @@ import {
   deleteMemory,
   getMemoriesByUserId,
   createMemory,
+  getAdminOverview,
+  getAdminUsers,
+  isAdmin,
+  getAiModelAccess,
+  setAiModelEnabled,
 } from "./db.js";
 import { getErrorMessage } from "./errors.js";
 import { getComfyImage, getComfyModels, loadComfyModels } from "./comfyui.js";
 import { getCachedUserBySession, invalidateUserCache } from "./sessions.js";
+import { getModels, loadModels } from "./ai.js";
 
 // An error that carries the HTTP status the client should see.
 class HttpError extends Error {
@@ -277,6 +283,17 @@ function isSafeSubfolder(subfolder: string) {
   );
 }
 
+function getOllamaModelNames(models: unknown[]) {
+  return models.flatMap((model) =>
+    typeof model === "object" &&
+    model !== null &&
+    "name" in model &&
+    typeof model.name === "string"
+      ? [model.name]
+      : [],
+  );
+}
+
 // Route each HTTP request to the right auth, account, chat, or message handler.
 // It validates the method/path, enforces auth for protected endpoints, and sends
 // JSON responses for both success and error cases.
@@ -398,9 +415,138 @@ async function handleRequest(
     const user = await requireUser(request, response);
     if (!user) return;
 
+    if (path === "/api/admin/overview" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const [overview, ollamaModels] = await Promise.all([
+        getAdminOverview(),
+        getModels(),
+      ]);
+      const comfyModels = getComfyModels();
+      const ollamaNames = getOllamaModelNames(ollamaModels.models);
+      sendJson(response, 200, {
+        ...overview,
+        services: {
+          ollama: {
+            status: ollamaModels.error
+              ? ollamaNames.length
+                ? "degraded"
+                : "unavailable"
+              : ollamaNames.length
+                ? "available"
+                : "unavailable",
+            models: ollamaNames,
+            error: ollamaModels.error,
+          },
+          comfyui: {
+            status: comfyModels.error
+              ? comfyModels.models.length
+                ? "degraded"
+                : "unavailable"
+              : comfyModels.models.length
+                ? "available"
+                : "unavailable",
+            models: comfyModels.models,
+            error: comfyModels.error,
+          },
+        },
+      });
+      return;
+    }
+
+    if (path === "/api/admin/users" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const beforeId = url.searchParams.get("beforeId") ?? undefined;
+      if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
+        sendJson(response, 400, { error: "Invalid user pagination cursor." });
+        return;
+      }
+      sendJson(response, 200, await getAdminUsers(beforeId));
+      return;
+    }
+
+    if (path === "/api/admin/models" && request.method === "GET") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const [ollamaModels, comfyModelNames] = await Promise.all([
+        loadModels(),
+        loadComfyModels(),
+      ]);
+      const ollamaNames = getOllamaModelNames(ollamaModels);
+      sendJson(response, 200, {
+        ollama: await getAiModelAccess("ollama", ollamaNames),
+        comfyui: await getAiModelAccess("comfyui", comfyModelNames),
+        errors: {
+          ollama: getModels().error,
+          comfyui: getComfyModels().error,
+        },
+      });
+      return;
+    }
+
+    if (path === "/api/admin/models" && request.method === "PATCH") {
+      if (!(await isAdmin(user.id))) {
+        sendJson(response, 403, {
+          error: "Administrator access is required.",
+        });
+        return;
+      }
+
+      const body = await readJson(request);
+      const modelType = body.modelType;
+      const modelName =
+        typeof body.modelName === "string" ? body.modelName.trim() : "";
+      if (
+        (modelType !== "ollama" && modelType !== "comfyui") ||
+        !modelName ||
+        typeof body.enabled !== "boolean"
+      ) {
+        sendJson(response, 400, {
+          error: "Provide a valid model type, model name, and enabled state.",
+        });
+        return;
+      }
+
+      const availableModels =
+        modelType === "ollama"
+          ? getOllamaModelNames(getModels().models)
+          : getComfyModels().models;
+      if (!availableModels.includes(modelName)) {
+        sendJson(response, 404, { error: "AI model not found." });
+        return;
+      }
+
+      await setAiModelEnabled(modelType, modelName, body.enabled);
+      sendJson(response, 200, { modelType, modelName, enabled: body.enabled });
+      return;
+    }
+
     if (path === "/api/comfy/models" && request.method === "GET") {
       if (getComfyModels().models.length === 0) await loadComfyModels();
-      sendJson(response, 200, getComfyModels());
+      const result = getComfyModels();
+      const models = await getAiModelAccess("comfyui", result.models);
+      sendJson(response, 200, {
+        ...result,
+        models: (await isAdmin(user.id))
+          ? result.models
+          : models.filter((model) => model.enabled).map((model) => model.name),
+      });
       return;
     }
 

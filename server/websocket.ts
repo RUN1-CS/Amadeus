@@ -11,7 +11,15 @@ import {
   releaseModelForImage,
 } from "./ai.js";
 import { getErrorMessage } from "./errors.js";
-import { getChatMessages, ownsChat, renameChat, saveMessage } from "./db.js";
+import {
+  getAiModelAccess,
+  getChatMessages,
+  isAdmin,
+  isAiModelEnabled,
+  ownsChat,
+  renameChat,
+  saveMessage,
+} from "./db.js";
 import { getCachedUserBySession } from "./sessions.js";
 import type { PublicUser } from "./types.js";
 import type { ClientMessage } from "./protocol.js";
@@ -59,6 +67,12 @@ async function generateAndSendImage(
   data: ClientMessage,
 ) {
   const positivePrompt = data.positivePrompt ?? data.prompt ?? "";
+  if (
+    !(await isAdmin(user.id)) &&
+    !(await isAiModelEnabled("comfyui", data.generativeModel ?? ""))
+  ) {
+    throw new Error("This image model is not available to regular users.");
+  }
   await releaseModelForImage(data.model ?? "");
   const image = await generateImage(
     data.generativeModel ?? "",
@@ -136,6 +150,13 @@ async function sendMessage(
 ) {
   const chatId = data.chatId;
   const prompt = data.prompt ?? "";
+
+  if (
+    !(await isAdmin(user.id)) &&
+    !(await isAiModelEnabled("ollama", data.model ?? ""))
+  ) {
+    throw new Error("This chat model is not available to regular users.");
+  }
 
   // getChatMessages returns nothing for chats the user doesn't own, so it doubles as the ownership check.
   const history = chatId ? await getChatMessages(user.id, chatId) : undefined;
@@ -233,7 +254,32 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
 
     if (data.type === "fetch_models") {
       const result = getModels();
-      send(ws, { type: "models", models: result.models });
+      const admin = await isAdmin(user.id);
+      const modelNames = result.models.flatMap((model) =>
+        typeof model === "object" &&
+        model !== null &&
+        "name" in model &&
+        typeof model.name === "string"
+          ? [model.name]
+          : [],
+      );
+      const access = await getAiModelAccess("ollama", modelNames);
+      const enabled = new Set(
+        access.filter((model) => model.enabled).map((model) => model.name),
+      );
+      send(ws, {
+        type: "models",
+        models: admin
+          ? result.models
+          : result.models.filter(
+              (model) =>
+                typeof model === "object" &&
+                model !== null &&
+                "name" in model &&
+                typeof model.name === "string" &&
+                enabled.has(model.name),
+            ),
+      });
       if (result.error) send(ws, { type: "error", error: result.error });
     } else if (data.type === "message") {
       await sendMessage(ws, user, data);

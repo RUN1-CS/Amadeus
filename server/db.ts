@@ -32,6 +32,7 @@ function publicUser(
     username: user.username,
     aboutMe: user.about_me ?? "",
     customBehavior: user.custom_behavior ?? "",
+    isAdmin: user.is_admin ?? false,
   };
 }
 
@@ -69,7 +70,9 @@ export async function register(username: string, password: string) {
 // Look up a user by name and validate the supplied password.
 export async function login(username: string, password: string) {
   const result = await pool.query<UserRow>(
-    "SELECT id, username, password_hash, about_me, custom_behavior FROM users WHERE username = $1",
+    `SELECT id, username, password_hash, about_me, custom_behavior,
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin
+     FROM users WHERE username = $1`,
     [normalizeUsername(username)],
   );
   const user = result.rows[0];
@@ -88,7 +91,9 @@ export async function updateAccount(
   customBehavior = "",
 ) {
   const result = await pool.query<UserRow>(
-    "SELECT id, username, password_hash FROM users WHERE id = $1",
+    `SELECT id, username, password_hash,
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin
+     FROM users WHERE id = $1`,
     [userId],
   );
   const user = result.rows[0];
@@ -107,7 +112,7 @@ export async function updateAccount(
       customBehavior.trim(),
     ],
   );
-  return publicUser(updated.rows[0]!);
+  return publicUser({ ...updated.rows[0]!, is_admin: user.is_admin });
 }
 
 // Create a login token that can be used to authorize future requests.
@@ -124,12 +129,131 @@ export async function createSession(userId: number) {
 export async function getUserBySession(token: string | undefined) {
   if (!token) return null;
   const result = await pool.query<SessionRow>(
-    `SELECT users.id, users.username, users.about_me, users.custom_behavior FROM sessions
+    `SELECT users.id, users.username, users.about_me, users.custom_behavior,
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin
+     FROM sessions
 		 JOIN users ON users.id = sessions.user_id
 		 WHERE sessions.session_token = $1 AND sessions.expires_at > CURRENT_TIMESTAMP`,
     [token],
   );
   return result.rows[0] ? publicUser(result.rows[0]) : null;
+}
+
+// Check admin membership on each privileged request so grants and revocations take effect immediately.
+export async function isAdmin(userId: number): Promise<boolean> {
+  const result = await pool.query(
+    "SELECT 1 FROM user_admins WHERE user_id = $1",
+    [userId],
+  );
+  return result.rowCount === 1;
+}
+
+export type AiModelType = "ollama" | "comfyui";
+
+// Missing model-access records mean the model is enabled by default.
+export async function getAiModelAccess(
+  modelType: AiModelType,
+  modelNames: string[],
+) {
+  if (!modelNames.length) return [];
+  const result = await pool.query<{ model_name: string; enabled: boolean }>(
+    `SELECT model_name, enabled FROM ai_model_access
+     WHERE model_type = $1 AND model_name = ANY($2::text[])`,
+    [modelType, modelNames],
+  );
+  const states = new Map(
+    result.rows.map((row) => [row.model_name, row.enabled]),
+  );
+  return modelNames.map((name) => ({
+    name,
+    enabled: states.get(name) ?? true,
+  }));
+}
+
+export async function isAiModelEnabled(
+  modelType: AiModelType,
+  modelName: string,
+): Promise<boolean> {
+  const result = await pool.query<{ enabled: boolean }>(
+    `SELECT enabled FROM ai_model_access
+     WHERE model_type = $1 AND model_name = $2`,
+    [modelType, modelName],
+  );
+  return result.rows[0]?.enabled ?? true;
+}
+
+export async function setAiModelEnabled(
+  modelType: AiModelType,
+  modelName: string,
+  enabled: boolean,
+) {
+  await pool.query(
+    `INSERT INTO ai_model_access (model_type, model_name, enabled)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (model_type, model_name)
+     DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()`,
+    [modelType, modelName, enabled],
+  );
+}
+
+// Return high-level account and usage metrics without exposing private chat or memory contents.
+export async function getAdminOverview() {
+  const [stats, recentUsers] = await Promise.all([
+    pool.query<{
+      users: number;
+      admins: number;
+      chats: number;
+      messages: number;
+      memories: number;
+    }>(
+      `SELECT
+         (SELECT COUNT(*)::int FROM users) AS users,
+         (SELECT COUNT(*)::int FROM user_admins) AS admins,
+         (SELECT COUNT(*)::int FROM chats) AS chats,
+         (SELECT COUNT(*)::int FROM messages) AS messages,
+         (SELECT COUNT(*)::int FROM memories) AS memories`,
+    ),
+    pool.query<{ username: string; createdAt: string }>(
+      `SELECT username, created_at AS "createdAt"
+       FROM users ORDER BY created_at DESC LIMIT 8`,
+    ),
+  ]);
+  return { stats: stats.rows[0]!, recentUsers: recentUsers.rows };
+}
+
+// Fetch one bounded batch of account metadata using a descending ID cursor.
+export async function getAdminUsers(beforeId?: string) {
+  const pageSize = 30;
+  const result = beforeId
+    ? await pool.query<{
+        id: string;
+        username: string;
+        createdAt: string;
+        isAdmin: boolean;
+      }>(
+        `SELECT users.id::text AS id, username, created_at AS "createdAt",
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin"
+         FROM users WHERE users.id < $1::bigint
+         ORDER BY users.id DESC LIMIT $2`,
+        [beforeId, pageSize + 1],
+      )
+    : await pool.query<{
+        id: string;
+        username: string;
+        createdAt: string;
+        isAdmin: boolean;
+      }>(
+        `SELECT users.id::text AS id, username, created_at AS "createdAt",
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin"
+         FROM users ORDER BY users.id DESC LIMIT $1`,
+        [pageSize + 1],
+      );
+  const hasMore = result.rows.length > pageSize;
+  const users = result.rows.slice(0, pageSize);
+  return {
+    users,
+    nextCursor: hasMore ? users.at(-1)?.id ?? null : null,
+  };
 }
 
 // Return the user's recent conversations sorted newest-first.
