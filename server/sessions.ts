@@ -1,10 +1,9 @@
 // Short-lived in-memory cache in front of session lookups, shared by the HTTP and WebSocket layers.
 import { getUserBySession } from "./db.js";
+import { maxEntries, ttlMs } from "./config.js";
 
 type CachedUser = NonNullable<Awaited<ReturnType<typeof getUserBySession>>>;
 
-const ttlMs = 30_000;
-const maxEntries = 1_000;
 const cache = new Map<string, { user: CachedUser; expiresAt: number }>();
 
 // Resolve a session token to its user, hitting the database at most once per TTL.
