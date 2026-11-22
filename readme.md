@@ -85,8 +85,11 @@ API through that proxy.
 
 Server logs are structured JSON written to standard output by Pino. Set
 `LOG_LEVEL` to `fatal`, `error`, `warn`, `info` (default), `debug`, or `trace` to
-adjust verbosity. Logs intentionally exclude request bodies, chat content,
-credentials, tokens, and browser tool arguments/results.
+adjust verbosity. The same events are stored in the `server_logs` PostgreSQL
+table and deleted after 30 days. Persisted records include only the log level,
+timestamp, event name, and an allowlist of operational metadata; request bodies,
+chat content, credentials, tokens, and browser tool arguments/results are not
+stored.
 
 ## Server API
 

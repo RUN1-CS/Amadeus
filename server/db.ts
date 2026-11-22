@@ -3,6 +3,8 @@ import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 import { Pool } from "pg";
 import migrate from "./db/migrate.js";
+import { getErrorType, logger, setDatabaseLogWriter } from "./logger.js";
+import { logCleanupIntervalMs, logRetentionMs } from "./config.js";
 
 import type {
   MemoryRow,
@@ -18,9 +20,38 @@ import type {
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
+async function pruneServerLogs() {
+  try {
+    await pool.query("DELETE FROM server_logs WHERE logged_at < $1", [
+      new Date(Date.now() - logRetentionMs),
+    ]);
+  } catch (error) {
+    logger.error(
+      {
+        event: "database.log_retention_cleanup_failed",
+        errorType: getErrorType(error),
+      },
+      "Could not delete expired server logs",
+    );
+  }
+}
+
 // Apply additive schema changes to databases created before the current schema.
 export async function initializeDatabase() {
   await migrate(pool);
+  setDatabaseLogWriter(async ({ loggedAt, level, event, metadata }) => {
+    await pool.query(
+      `INSERT INTO server_logs (logged_at, level, event, metadata)
+       VALUES ($1, $2, $3, $4)`,
+      [loggedAt, level, event, JSON.stringify(metadata)],
+    );
+  });
+  await pruneServerLogs();
+  const cleanup = setInterval(
+    () => void pruneServerLogs(),
+    logCleanupIntervalMs,
+  );
+  cleanup.unref();
 }
 
 // Strip sensitive fields down to the public user shape returned to the client.
@@ -252,7 +283,7 @@ export async function getAdminUsers(beforeId?: string) {
   const users = result.rows.slice(0, pageSize);
   return {
     users,
-    nextCursor: hasMore ? users.at(-1)?.id ?? null : null,
+    nextCursor: hasMore ? (users.at(-1)?.id ?? null) : null,
   };
 }
 

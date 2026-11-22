@@ -46,3 +46,11 @@ export const maxEntries = Number(process.env.MAX_ENTRIES ?? 1_000);
 export const maxPayloadBytes = Number(
   process.env.MAX_PAYLOAD_BYTES ?? 25 * 1024 * 1024,
 );
+
+// Logging
+export const logRetentionMs = Number(
+  process.env.LOG_RETENTION_MS ?? 30 * 24 * 60 * 60 * 1000,
+);
+export const logCleanupIntervalMs = Number(
+  process.env.LOG_CLEANUP_INTERVAL_MS ?? 86400000,
+);
