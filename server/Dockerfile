@@ -7,6 +7,8 @@ RUN npm ci
 
 COPY *.ts tsconfig.json ./
 COPY db ./db
+COPY http ./http
+COPY classes ./classes
 RUN npm run build
 
 FROM node:24-bookworm-slim
