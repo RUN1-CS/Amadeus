@@ -27,7 +27,8 @@ Amadeus/
 │   ├── db/                   # Database layer
 │   │   └── migrations/       # SQL schema migrations
 │   ├── http/                 # HTTP route handlers
-│   ├── ai.ts                 # AI model integration
+│   ├── ai/                   # AI model integration
+│   ├── ai.ts                 # AI model management
 │   ├── backups.ts            # Database backup management
 │   ├── comfyui.ts            # ComfyUI integration
 │   ├── config.ts             # Environment and server configuration
@@ -48,6 +49,7 @@ Amadeus/
 │       ├── router/           # Application routing
 │       ├── services/         # API and frontend services
 │       ├── stores/           # Pinia state management
+│       │   └── ollama/       # Ollama store files
 │       ├── types/            # Frontend TypeScript definitions
 │       ├── views/            # Application pages
 │       ├── App.vue           # Root Vue component
