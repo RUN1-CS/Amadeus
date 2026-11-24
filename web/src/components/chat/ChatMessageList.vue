@@ -33,9 +33,9 @@ function renderMarkdown(content: string | null | undefined) {
     >
       ✦
     </div>
-    <h2 class="text-xl font-bold">Start a fresh conversation</h2>
+    <h2 class="text-xl font-bold">{{ $t("chat.freshConversation") }}</h2>
     <p class="mt-2 max-w-md text-sm leading-6 text-[var(--theme-muted)]">
-      Bring a question, a half-formed idea, or a problem you want to untangle.
+      {{ $t("chat.freshConversationDescription") }}
     </p>
   </div>
   <div v-else class="mx-auto w-full max-w-3xl space-y-7">
@@ -52,7 +52,11 @@ function renderMarkdown(content: string | null | undefined) {
       </div>
       <div class="min-w-0 flex-1">
         <div class="mb-1.5 flex items-baseline gap-2 text-xs">
-          <strong>{{ message.role === "assistant" ? message.model || "Assistant" : "You" }}</strong>
+          <strong>
+            {{
+              message.role === "assistant" ? message.model || $t("chat.assistant") : $t("chat.you")
+            }}
+          </strong>
           <span class="font-mono text-[10px] text-[var(--theme-subtle)]">{{ message.time }}</span>
         </div>
         <details
@@ -82,7 +86,9 @@ function renderMarkdown(content: string | null | undefined) {
                   class="text-[10px] uppercase text-[var(--theme-accent)] hover:underline"
                   @click="toggleExpand(file)"
                 >
-                  {{ expandedAttachments[getFileKey(file)] ? "Show less" : "Show full" }}
+                  {{
+                    expandedAttachments[getFileKey(file)] ? $t("app.showLess") : $t("app.showFull")
+                  }}
                 </button>
                 <button
                   type="button"
@@ -90,7 +96,9 @@ function renderMarkdown(content: string | null | undefined) {
                   @click="toggleHideAttachment(file)"
                 >
                   {{
-                    hiddenAttachments[getFileKey(file)] ? "Unhide attachment" : "Hide attachment"
+                    hiddenAttachments[getFileKey(file)]
+                      ? $t("app.unhideAttachment")
+                      : $t("app.hideAttachment")
                   }}
                 </button>
               </div>
@@ -120,7 +128,7 @@ function renderMarkdown(content: string | null | undefined) {
               <pre
                 v-if="expandedAttachments[getFileKey(file)]"
                 class="max-h-96 overflow-y-auto whitespace-pre-wrap break-all"
-                >{{ getDisplayContent(file) || "Loading content..." }}</pre
+                >{{ getDisplayContent(file) || $t("chat.loadingContent") }}</pre
               >
               <pre
                 v-else
@@ -156,12 +164,12 @@ function renderMarkdown(content: string | null | undefined) {
         </span>
         <div class="flex flex-col">
           <span class="text-xs font-semibold text-[var(--theme-text)]">
-            {{ thinking ? "Thinking" : "Generating response" }}
+            {{ thinking ? $t("app.thinking") : $t("chat.generatingResponse") }}
           </span>
           <span
             class="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--theme-subtle)]"
           >
-            {{ thinking ? "Reasoning locally" : "Writing locally" }}
+            {{ thinking ? $t("chat.reasoningLocally") : $t("chat.writingLocally") }}
           </span>
         </div>
       </div>

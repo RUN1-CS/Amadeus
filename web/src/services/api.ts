@@ -1,4 +1,6 @@
 // Small fetch wrapper that adds JSON handling and bearer-token auth.
+import i18n from "@/i18n";
+
 const apiBase = `http://${window.location.hostname}:8080`;
 
 // Build a small API client that automatically attaches JWT auth and JSON parsing.
@@ -17,7 +19,7 @@ export function createApiClient(getToken: () => string | null) {
 
       const response = await fetch(`${apiBase}${path}`, { ...options, headers });
       const body = (await response.json()) as T & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Request failed.");
+      if (!response.ok) throw new Error(body.error ?? i18n.global.t("api.requestFailed"));
       return body;
     },
 
@@ -33,7 +35,7 @@ export function createApiClient(getToken: () => string | null) {
       const response = await fetch(`${apiBase}${path}`, { ...options, headers });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? "Request failed.");
+        throw new Error(body.error ?? i18n.global.t("api.requestFailed"));
       }
       return response;
     },

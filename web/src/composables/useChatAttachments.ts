@@ -1,5 +1,6 @@
 import { ref, watch, type Ref } from "vue";
 
+import i18n from "@/i18n";
 import { useOllamaStore } from "@/stores/ollama";
 import type { AttachmentItem, ChatMessage } from "@/types/chat";
 
@@ -128,7 +129,7 @@ export function useChatAttachments(messageList: Ref<ChatMessage[]>) {
 
   function getPreviewText(file: AttachmentFile): string {
     const text = getDisplayContent(file);
-    if (!text) return "Loading content...";
+    if (!text) return i18n.global.t("attachments.loading");
     const lines = text.split("\n").slice(0, 3).join("\n");
     const maxChars = 160;
     if (lines.length > maxChars) return `${lines.slice(0, maxChars).trim()}…`;
@@ -150,7 +151,7 @@ export function useChatAttachments(messageList: Ref<ChatMessage[]>) {
       loadedContents.value[key] = await response.text();
     } catch (error) {
       console.error("Failed to fetch file content:", error);
-      loadedContents.value[key] = "Failed to load content";
+      loadedContents.value[key] = i18n.global.t("attachments.failed");
     }
   }
 

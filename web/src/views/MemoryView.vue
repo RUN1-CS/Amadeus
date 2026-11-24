@@ -1,12 +1,14 @@
 <!-- View for viewing, searching, creating, and editing memories. -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import BackToChatButton from "@/components/common/BackToChatButton.vue";
 import { useMemoryStore } from "@/stores/memory";
 import type { Memory } from "@/types/chat";
 
 const memoryStore = useMemoryStore();
+const { t } = useI18n();
 const { memories, loading, error } = storeToRefs(memoryStore);
 
 // Form state
@@ -61,7 +63,7 @@ async function handleSubmit() {
   try {
     parsedMetadata = JSON.parse(metadataJson.value || "{}");
   } catch {
-    formError.value = "Metadata must be valid JSON.";
+    formError.value = t("memory.invalidMetadata");
     return;
   }
 
@@ -72,27 +74,27 @@ async function handleSubmit() {
         source: source.value,
         metadata: parsedMetadata,
       });
-      formSuccess.value = "Memory updated successfully.";
+      formSuccess.value = t("memory.updated");
     } else {
       await memoryStore.createMemory({
         content: content.value,
         source: source.value,
         metadata: parsedMetadata,
       });
-      formSuccess.value = "Memory created successfully.";
+      formSuccess.value = t("memory.createdSuccessfully");
     }
     resetForm();
   } catch (err) {
-    formError.value = err instanceof Error ? err.message : "Operation failed.";
+    formError.value = err instanceof Error ? err.message : t("memory.operationFailed");
   }
 }
 
 async function handleDelete(id: number) {
-  if (!confirm("Are you sure you want to delete this memory?")) return;
+  if (!confirm(t("memory.confirmDelete"))) return;
   try {
     await memoryStore.deleteMemory(id);
   } catch (err) {
-    formError.value = err instanceof Error ? err.message : "Delete failed.";
+    formError.value = err instanceof Error ? err.message : t("memory.deleteFailed");
   }
 }
 </script>
@@ -108,18 +110,18 @@ async function handleDelete(id: number) {
         class="rounded-2xl border border-[#ddd8ce] bg-[var(--theme-surface)] p-7 shadow-sm sm:p-9"
       >
         <p class="font-mono text-[10px] uppercase tracking-widest text-[var(--theme-muted)]">
-          Knowledge Base
+          {{ $t("memory.knowledgeBase") }}
         </p>
-        <h1 class="mt-2 text-2xl font-bold">Memory Management</h1>
+        <h1 class="mt-2 text-2xl font-bold">{{ $t("memory.management") }}</h1>
         <p class="mt-2 text-sm text-[var(--theme-muted)]">
-          View and manage custom context and stored memories for your assistant.
+          {{ $t("memory.description") }}
         </p>
 
         <!-- Form Section -->
         <form class="mt-8 space-y-4 border-b border-[#eeeae3] pb-8" @submit.prevent="handleSubmit">
           <div class="flex items-center justify-between">
             <h2 class="text-sm font-bold">
-              {{ isEditing ? "Edit Memory" : "Add New Memory" }}
+              {{ isEditing ? $t("memory.editMemory") : $t("memory.addMemory") }}
             </h2>
             <button
               v-if="isEditing"
@@ -127,39 +129,42 @@ async function handleDelete(id: number) {
               class="text-xs text-[var(--theme-accent)] hover:underline"
               @click="resetForm"
             >
-              Cancel Edit
+              {{ $t("memory.cancelEdit") }}
             </button>
           </div>
 
           <label class="block text-sm font-semibold">
-            Content
+            {{ $t("memory.content") }}
             <textarea
               v-model="content"
               rows="3"
               required
-              placeholder="Enter the memory fact or snippet..."
+              :placeholder="$t('memory.contentPlaceholder')"
               class="mt-2 w-full resize-y rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
             ></textarea>
           </label>
 
           <div class="grid gap-4 sm:grid-cols-2">
             <label class="block text-sm font-semibold">
-              Source
+              {{ $t("memory.source") }}
               <input
                 v-model="source"
                 type="text"
                 required
-                placeholder="e.g., user, chat, system"
+                :placeholder="$t('memory.sourcePlaceholder')"
                 class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
               />
             </label>
 
             <label class="block text-sm font-semibold">
-              Metadata <span class="font-normal text-[var(--theme-muted)]">(JSON)</span>
+              {{ $t("memory.metadata") }}
+              <span class="font-normal text-[var(--theme-muted)]">{{
+                $t("memory.metadataJson")
+              }}</span>
               <input
                 v-model="metadataJson"
                 type="text"
-                placeholder='{"category": "preference"}'
+                :placeholder="$t('memory.metadataPlaceholder')"
                 class="mt-2 w-full rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
               />
             </label>
@@ -177,18 +182,20 @@ async function handleDelete(id: number) {
             :disabled="loading"
             class="rounded-lg bg-[var(--theme-accent)] px-4 py-2.5 text-sm font-bold text-white hover:opacity-80 disabled:opacity-50"
           >
-            {{ isEditing ? "Update Memory" : "Save Memory" }}
+            {{ isEditing ? $t("memory.updateMemory") : $t("memory.saveMemory") }}
           </button>
         </form>
 
         <!-- Memory List Section -->
         <div class="mt-8">
           <div class="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <h2 class="text-sm font-bold">Stored Memories ({{ memories.length }})</h2>
+            <h2 class="text-sm font-bold">
+              {{ $t("memory.storedMemories", { count: memories.length }) }}
+            </h2>
             <input
               v-model="searchFilter"
               type="text"
-              placeholder="Search memories..."
+              :placeholder="$t('memory.searchPlaceholder')"
               class="rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-1.5 text-sm outline-none focus:border-[var(--theme-accent)]"
             />
           </div>
@@ -201,14 +208,14 @@ async function handleDelete(id: number) {
             v-if="loading && memories.length === 0"
             class="py-6 text-center text-sm text-[var(--theme-muted)]"
           >
-            Loading memories...
+            {{ $t("memory.loading") }}
           </div>
 
           <div
             v-else-if="filteredMemories.length === 0"
             class="py-6 text-center text-sm text-[var(--theme-muted)]"
           >
-            No memories found.
+            {{ $t("memory.empty") }}
           </div>
 
           <div v-else class="divide-y divide-[#eeeae3]">
@@ -223,7 +230,10 @@ async function handleDelete(id: number) {
                   <span class="rounded bg-[#eeeae3] px-2 py-0.5 font-mono text-[10px]">{{
                     memory.source
                   }}</span>
-                  <span>Created: {{ new Date(memory.created_at).toLocaleDateString() }}</span>
+                  <span
+                    >{{ $t("memory.created") }}
+                    {{ new Date(memory.created_at).toLocaleDateString() }}</span
+                  >
                   <span
                     v-if="Object.keys(memory.metadata || {}).length > 0"
                     class="font-mono text-[10px]"
@@ -238,13 +248,13 @@ async function handleDelete(id: number) {
                   class="text-xs text-[var(--theme-accent)] hover:underline"
                   @click="startEdit(memory)"
                 >
-                  Edit
+                  {{ $t("memory.edit") }}
                 </button>
                 <button
                   class="text-xs text-[#9e422c] hover:underline"
                   @click="handleDelete(memory.id)"
                 >
-                  Delete
+                  {{ $t("memory.delete") }}
                 </button>
               </div>
             </article>

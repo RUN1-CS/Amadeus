@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { createApiClient } from "@/services/api";
 import { useOllamaStore } from "@/stores/ollama";
@@ -13,6 +14,7 @@ type ModelCatalog = {
 };
 
 const store = useOllamaStore();
+const { t } = useI18n();
 const { token } = storeToRefs(store);
 const api = createApiClient(() => token.value);
 const catalog = ref<ModelCatalog>({ ollama: [], comfyui: [], errors: {} });
@@ -20,8 +22,8 @@ const loading = ref(false);
 const error = ref("");
 const savingKeys = ref<string[]>([]);
 const groups: { key: ModelType; title: string }[] = [
-  { key: "ollama", title: "Ollama chat models" },
-  { key: "comfyui", title: "ComfyUI image models" },
+  { key: "ollama", title: "admin.models.ollama" },
+  { key: "comfyui", title: "admin.models.comfyui" },
 ];
 
 async function loadModels() {
@@ -31,7 +33,7 @@ async function loadModels() {
     catalog.value = await api.request<ModelCatalog>("/api/admin/models");
   } catch (requestError) {
     error.value =
-      requestError instanceof Error ? requestError.message : "Could not load AI models.";
+      requestError instanceof Error ? requestError.message : t("admin.models.couldNotLoad");
   } finally {
     loading.value = false;
   }
@@ -58,7 +60,7 @@ async function setEnabled(modelType: ModelType, model: ManagedModel, enabled: bo
     if (updatedModel) updatedModel.enabled = response.enabled;
   } catch (requestError) {
     error.value =
-      requestError instanceof Error ? requestError.message : "Could not update model access.";
+      requestError instanceof Error ? requestError.message : t("admin.models.couldNotUpdate");
   } finally {
     savingKeys.value = savingKeys.value.filter((entry) => entry !== key);
   }
@@ -73,9 +75,9 @@ onMounted(() => void loadModels());
   >
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 class="text-lg font-bold">AI model access</h2>
+        <h2 class="text-lg font-bold">{{ $t("admin.models.access") }}</h2>
         <p class="mt-1 text-sm text-[var(--theme-muted)]">
-          Choose which discovered models regular users can use. Admins retain access to all models.
+          {{ $t("admin.models.description") }}
         </p>
       </div>
       <button
@@ -83,7 +85,7 @@ onMounted(() => void loadModels());
         :disabled="loading"
         @click="loadModels"
       >
-        {{ loading ? "Refreshing…" : "Refresh models" }}
+        {{ loading ? $t("admin.models.refreshing") : $t("admin.models.refresh") }}
       </button>
     </div>
 
@@ -102,7 +104,7 @@ onMounted(() => void loadModels());
         class="rounded-lg border border-[var(--theme-border)]"
       >
         <header class="border-b border-[var(--theme-border)] px-4 py-3">
-          <h3 class="font-semibold">{{ group.title }}</h3>
+          <h3 class="font-semibold">{{ $t(group.title) }}</h3>
           <p v-if="catalog.errors[group.key]" class="mt-1 text-xs text-[#853c2a]">
             {{ catalog.errors[group.key] }}
           </p>
@@ -123,15 +125,15 @@ onMounted(() => void loadModels());
                 class="size-4 accent-[var(--theme-accent)]"
                 :checked="model.enabled"
                 :disabled="savingKeys.includes(`${group.key}:${model.name}`)"
-                :aria-label="`Allow regular users to use ${model.name}`"
+                :aria-label="$t('admin.models.allowRegularUsers', { model: model.name })"
                 @change="setEnabled(group.key, model, ($event.target as HTMLInputElement).checked)"
               />
-              {{ model.enabled ? "Enabled" : "Disabled" }}
+              {{ model.enabled ? $t("admin.models.enabled") : $t("admin.models.disabled") }}
             </label>
           </li>
         </ul>
         <p v-else class="px-4 py-5 text-sm text-[var(--theme-muted)]">
-          {{ loading ? "Loading models…" : "No models discovered." }}
+          {{ loading ? $t("admin.models.loading") : $t("admin.models.none") }}
         </p>
       </section>
     </div>

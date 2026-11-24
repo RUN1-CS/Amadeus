@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { createApiClient } from "@/services/api";
 import { useOllamaStore } from "@/stores/ollama";
@@ -18,6 +19,7 @@ type LogPage = {
 };
 
 const store = useOllamaStore();
+const { t } = useI18n();
 const { token } = storeToRefs(store);
 const api = createApiClient(() => token.value);
 const logs = ref<ServerLog[]>([]);
@@ -46,7 +48,7 @@ async function loadLogs(reset = true) {
     cursor.value = page.nextCursor;
   } catch (requestError) {
     error.value =
-      requestError instanceof Error ? requestError.message : "Could not load server logs.";
+      requestError instanceof Error ? requestError.message : t("admin.logs.couldNotLoad");
   } finally {
     loading.value = false;
   }
@@ -82,9 +84,9 @@ onMounted(() => void loadLogs());
   >
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 class="text-lg font-bold">Recent server logs</h2>
+        <h2 class="text-lg font-bold">{{ $t("admin.logs.recent") }}</h2>
         <p class="mt-1 text-sm text-[var(--theme-muted)]">
-          Latest 100 entries per page · retained for 30 days
+          {{ $t("admin.logs.retention") }}
         </p>
       </div>
       <button
@@ -92,33 +94,33 @@ onMounted(() => void loadLogs());
         :disabled="loading"
         @click="loadLogs()"
       >
-        {{ loading ? "Loading…" : "Refresh logs" }}
+        {{ loading ? $t("admin.logs.loading") : $t("admin.logs.refresh") }}
       </button>
     </div>
 
     <form class="mt-4 flex flex-wrap items-end gap-3" @submit.prevent="applyFilters">
       <label class="grid gap-1 text-xs font-semibold text-[var(--theme-muted)]">
-        Level
+        {{ $t("admin.logs.level") }}
         <select
           v-model="level"
           class="min-w-32 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)] px-3 py-2 text-sm text-[var(--theme-text)]"
         >
-          <option value="">All levels</option>
-          <option value="trace">Trace</option>
-          <option value="debug">Debug</option>
-          <option value="info">Info</option>
-          <option value="warn">Warning</option>
-          <option value="error">Error</option>
-          <option value="fatal">Fatal</option>
+          <option value="">{{ $t("admin.logs.allLevels") }}</option>
+          <option value="trace">{{ $t("admin.logs.trace") }}</option>
+          <option value="debug">{{ $t("admin.logs.debug") }}</option>
+          <option value="info">{{ $t("admin.logs.info") }}</option>
+          <option value="warn">{{ $t("admin.logs.warning") }}</option>
+          <option value="error">{{ $t("admin.logs.error") }}</option>
+          <option value="fatal">{{ $t("admin.logs.fatal") }}</option>
         </select>
       </label>
       <label class="grid min-w-56 flex-1 gap-1 text-xs font-semibold text-[var(--theme-muted)]">
-        Event contains
+        {{ $t("admin.logs.eventContains") }}
         <input
           v-model="eventFilter"
           type="search"
           maxlength="120"
-          placeholder="e.g. http.request"
+          :placeholder="$t('admin.logs.eventPlaceholder')"
           class="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)] px-3 py-2 text-sm text-[var(--theme-text)]"
         />
       </label>
@@ -127,7 +129,7 @@ onMounted(() => void loadLogs());
         class="rounded-lg bg-[var(--theme-accent)] px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
         :disabled="loading"
       >
-        Apply filters
+        {{ $t("admin.logs.applyFilters") }}
       </button>
     </form>
 
@@ -145,10 +147,12 @@ onMounted(() => void loadLogs());
           class="sticky top-0 z-[1] bg-[var(--theme-sidebar)] text-xs text-[var(--theme-muted)]"
         >
           <tr>
-            <th scope="col" class="whitespace-nowrap px-4 py-3 font-semibold">Time</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Level</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Event</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Details</th>
+            <th scope="col" class="whitespace-nowrap px-4 py-3 font-semibold">
+              {{ $t("admin.logs.time") }}
+            </th>
+            <th scope="col" class="px-4 py-3 font-semibold">{{ $t("admin.logs.level") }}</th>
+            <th scope="col" class="px-4 py-3 font-semibold">{{ $t("admin.logs.event") }}</th>
+            <th scope="col" class="px-4 py-3 font-semibold">{{ $t("admin.logs.details") }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[var(--theme-border)]">
@@ -171,7 +175,7 @@ onMounted(() => void loadLogs());
           </tr>
           <tr v-if="logs.length === 0 && !loading && !error">
             <td colspan="4" class="px-4 py-8 text-center text-sm text-[var(--theme-muted)]">
-              No logs match these filters.
+              {{ $t("admin.logs.noMatches") }}
             </td>
           </tr>
         </tbody>
@@ -180,7 +184,7 @@ onMounted(() => void loadLogs());
         v-if="loading && logs.length === 0"
         class="px-4 py-5 text-center text-sm text-[var(--theme-muted)]"
       >
-        Loading logs…
+        {{ $t("admin.logs.loadingLogs") }}
       </p>
     </div>
 
@@ -190,7 +194,7 @@ onMounted(() => void loadLogs());
         :disabled="loading"
         @click="loadLogs(false)"
       >
-        {{ loading ? "Loading…" : "Load older logs" }}
+        {{ loading ? $t("admin.logs.loading") : $t("admin.logs.loadOlder") }}
       </button>
     </div>
   </section>

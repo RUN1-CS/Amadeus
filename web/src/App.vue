@@ -137,7 +137,7 @@ async function submitMessage() {
       <span
         class="rounded-xl bg-[var(--theme-surface)] px-6 py-4 text-sm font-semibold text-[var(--theme-text)] shadow-lg"
       >
-        Drop files to attach
+        {{ $t("app.dropFiles") }}
       </span>
     </div>
     <ChatSidebar />
@@ -150,10 +150,11 @@ async function submitMessage() {
           <div
             class="mb-2.5 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--theme-muted)]"
           >
-            <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Private workspace
+            <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span>
+            {{ $t("app.privateWorkspace") }}
           </div>
           <h1 class="text-xl font-bold tracking-tight sm:text-2xl">
-            {{ activeChat?.title ?? "Conversation" }}
+            {{ activeChat?.title ?? $t("app.conversation") }}
           </h1>
         </div>
         <div class="flex items-center gap-3">
@@ -162,11 +163,12 @@ async function submitMessage() {
             class="rounded-md border border-[var(--theme-border)] px-2 py-1 text-xs text-[var(--theme-muted)] hover:border-[var(--theme-accent)]"
             @click="setSidebarVisible(true)"
           >
-            Chats
+            {{ $t("app.chats") }}
           </button>
           <span
             class="hidden items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)] sm:flex"
-            ><span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Ready</span
+            ><span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span>
+            {{ $t("app.ready") }}</span
           >
         </div>
       </header>
@@ -194,25 +196,25 @@ async function submitMessage() {
         <div class="mx-auto mt-8 w-full max-w-3xl">
           <div class="mb-3 flex flex-wrap items-center gap-2">
             <span class="mr-1 font-mono text-[10px] uppercase tracking-wider text-[#9a948b]"
-              >Try asking</span
+              >{{ $t("app.tryAsking") }}</span
             >
             <button
               class="rounded-full border border-[var(--theme-border)] px-3 py-1.5 text-[11px] text-[var(--theme-muted)] transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
-              @click="selectPrompt('Summarize a complex idea for me')"
+              @click="selectPrompt($t('app.summarizePrompt'))"
             >
-              Summarize an idea
+              {{ $t("app.summarizeIdea") }}
             </button>
             <button
               class="rounded-full border border-[var(--theme-border)] px-3 py-1.5 text-[11px] text-[var(--theme-muted)] transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
-              @click="selectPrompt('Help me plan my next project')"
+              @click="selectPrompt($t('app.planPrompt'))"
             >
-              Plan a project
+              {{ $t("app.planProject") }}
             </button>
             <button
               class="rounded-full border border-[var(--theme-border)] px-3 py-1.5 text-[11px] text-[var(--theme-muted)] transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
-              @click="selectPrompt('Review this code for me')"
+              @click="selectPrompt($t('app.reviewPrompt'))"
             >
-              Review some code
+              {{ $t("app.reviewCode") }}
             </button>
           </div>
           <form
@@ -222,9 +224,9 @@ async function submitMessage() {
             <textarea
               v-model="draft"
               rows="1"
-              placeholder="Message your local assistant..."
+              :placeholder="$t('app.messagePlaceholder')"
               class="min-h-14 w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-subtle)]"
-              aria-label="Message your local assistant"
+              :aria-label="$t('app.messageAriaLabel')"
               @keydown="handleComposerKeydown"
             ></textarea>
             <div v-if="attachments.length" class="mb-3 space-y-2 px-2">
@@ -243,7 +245,11 @@ async function submitMessage() {
                       class="text-[10px] uppercase text-[var(--theme-accent)] hover:underline"
                       @click="toggleExpand(file)"
                     >
-                      {{ expandedAttachments[getFileKey(file)] ? "Show less" : "Show full" }}
+                      {{
+                        expandedAttachments[getFileKey(file)]
+                          ? $t("app.showLess")
+                          : $t("app.showFull")
+                      }}
                     </button>
                     <button
                       type="button"
@@ -252,14 +258,14 @@ async function submitMessage() {
                     >
                       {{
                         hiddenAttachments[getFileKey(file)]
-                          ? "Unhide attachment"
-                          : "Hide attachment"
+                          ? $t("app.unhideAttachment")
+                          : $t("app.hideAttachment")
                       }}
                     </button>
                     <button
                       type="button"
                       class="text-[var(--theme-subtle)] hover:text-[var(--theme-accent)]"
-                      :aria-label="`Remove ${file.name}`"
+                      :aria-label="$t('app.removeAttachment', { filename: file.name })"
                       @click="removeAttachment(index)"
                     >
                       ×
@@ -294,10 +300,10 @@ async function submitMessage() {
                 <button
                   type="button"
                   class="rounded-md px-2 py-1.5 text-xs text-[var(--theme-muted)] transition hover:bg-[var(--theme-background)] hover:text-[var(--theme-text)]"
-                  aria-label="Attach a file"
+                  :aria-label="$t('app.attachFile')"
                   @click="composerActions.attach"
                 >
-                  ＋ Attach
+                  ＋ {{ $t("app.attach") }}
                 </button>
                 <input
                   ref="attachmentInput"
@@ -305,14 +311,14 @@ async function submitMessage() {
                   type="file"
                   multiple
                   accept="image/*,application/pdf,.pdf,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
-                  aria-label="Choose files to attach"
+                  :aria-label="$t('app.chooseFiles')"
                   @change="handleFileSelection"
                 />
                 <button
                   class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
                   type="submit"
                   :disabled="(!draft.trim() && !attachments.length) || isGenerating"
-                  aria-label="Send message"
+                  :aria-label="$t('app.sendMessage')"
                 >
                   <span
                     v-if="isGenerating"
@@ -327,14 +333,14 @@ async function submitMessage() {
                   class="flex min-w-[150px] flex-1 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
                   for="composer-model"
                 >
-                  Model
+                  {{ $t("app.model") }}
                   <select
                     id="composer-model"
                     v-model="ollamaStore.selectedModel"
                     class="min-w-0 flex-1 rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
                   >
                     <option v-if="ollamaStore.models.length === 0" value="" disabled>
-                      Waiting for models...
+                      {{ $t("app.waitingForModels") }}
                     </option>
                     <option v-for="model in ollamaStore.models" :key="model" :value="model">
                       {{ model }}
@@ -345,14 +351,14 @@ async function submitMessage() {
                   class="flex min-w-[170px] flex-1 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
                   for="comfy-model"
                 >
-                  Image model
+                  {{ $t("app.imageModel") }}
                   <select
                     id="comfy-model"
                     v-model="selectedComfyModel"
                     class="min-w-0 flex-1 rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
                   >
                     <option v-if="comfyModels.length === 0" value="" disabled>
-                      No checkpoints found
+                      {{ $t("app.noCheckpoints") }}
                     </option>
                     <option v-for="model in comfyModels" :key="model" :value="model">
                       {{ model }}
@@ -365,7 +371,7 @@ async function submitMessage() {
                     type="checkbox"
                     class="accent-[var(--theme-accent)]"
                   />
-                  Tsundere
+                  {{ $t("app.tsundere") }}
                 </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
                   <input
@@ -373,7 +379,7 @@ async function submitMessage() {
                     type="checkbox"
                     class="accent-[var(--theme-accent)]"
                   />
-                  Thinking
+                  {{ $t("app.thinking") }}
                 </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
                   <input
@@ -381,13 +387,13 @@ async function submitMessage() {
                     type="checkbox"
                     class="accent-[var(--theme-accent)]"
                   />
-                  Stream
+                  {{ $t("app.stream") }}
                 </label>
               </div>
             </div>
           </form>
           <p class="mt-3 text-center font-mono text-[10px] text-[var(--theme-subtle)]">
-            Ollama can make mistakes. Check important information.
+            {{ $t("app.disclaimer") }}
           </p>
         </div>
       </div>
