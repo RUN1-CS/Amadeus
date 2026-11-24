@@ -94,7 +94,7 @@ async function deleteAccount() {
         <h1 class="mt-2 text-2xl font-bold">Account settings</h1>
         <p class="mt-2 text-sm text-[var(--theme-muted)]">Signed in as {{ user?.username }}</p>
 
-        <div class="mt-8 divide-y divide-[#eeeae3]">
+        <div class="mt-8 divide-y divide-[#eeeae3] items-center">
           <section class="py-6">
             <div class="flex items-start justify-between gap-4">
               <div>
@@ -228,18 +228,21 @@ async function deleteAccount() {
             <p v-if="saved" class="rounded-lg bg-[#e4f0df] px-3 py-2 text-sm text-[#47723e]">
               Account updated.
             </p>
-            <button
-              type="submit"
-              class="rounded-lg bg-[var(--theme-accent)] px-4 py-2.5 text-sm font-bold text-white hover:opacity-80"
-            >
-              Save account
-            </button>
-            <button
-              class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
-              @click="router.push('/memory')"
-            >
-              Memory settings
-            </button>
+            <div class="flex flex-col items-center gap-3">
+              <button
+                type="submit"
+                class="rounded-lg bg-[var(--theme-accent)] px-4 py-2.5 text-sm font-bold text-white hover:opacity-80"
+              >
+                Save account
+              </button>
+              <button
+                type="button"
+                class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
+                @click="router.push('/memory')"
+              >
+                Memory settings
+              </button>
+            </div>
           </form>
 
           <section class="border-t border-[#eeeae3] py-6">
@@ -261,14 +264,16 @@ async function deleteAccount() {
             <p v-if="deleteError" role="alert" class="mt-3 text-sm text-[#853c2a]">
               {{ deleteError }}
             </p>
-            <button
-              type="button"
-              class="mt-4 rounded-lg border border-[#e7b6a4] px-4 py-2.5 text-sm font-bold text-[#853c2a] hover:bg-[#f9e4dc] disabled:opacity-50"
-              :disabled="deleting || !deletePassword"
-              @click="deleteAccount"
-            >
-              {{ deleting ? "Deleting…" : "Permanently delete account" }}
-            </button>
+            <div class="mt-4 flex justify-center">
+              <button
+                type="button"
+                class="rounded-lg border border-[#e7b6a4] px-4 py-2.5 text-sm font-bold text-[#853c2a] hover:bg-[#f9e4dc] disabled:opacity-50"
+                :disabled="deleting || !deletePassword"
+                @click="deleteAccount"
+              >
+                {{ deleting ? "Deleting…" : "Permanently delete account" }}
+              </button>
+            </div>
           </section>
         </div>
       </div>

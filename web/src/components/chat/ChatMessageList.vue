@@ -137,23 +137,34 @@ function renderMarkdown(content: string | null | undefined) {
         ></div>
       </div>
     </article>
-    <div v-if="isGenerating" class="flex items-center gap-3">
+    <div v-if="isGenerating" class="flex items-center gap-3" aria-live="polite">
       <span
-        class="grid size-8 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-xs text-[#fffaf4]"
-        >O</span
+        class="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-xs text-[#fffaf4]"
       >
-      <span
-        class="flex items-center gap-2 rounded-full bg-[var(--theme-sidebar)] px-3 py-2 text-xs text-[var(--theme-muted)]"
-      >
-        <i class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)]"></i>
-        <i
-          class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)] [animation-delay:150ms]"
-        ></i>
-        <i
-          class="size-1.5 animate-pulse rounded-full bg-[var(--theme-accent)] [animation-delay:300ms]"
-        ></i>
-        <span>{{ thinking ? "Thinking..." : "Generating..." }}</span>
+        O
       </span>
+      <div
+        class="flex items-center gap-3 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-3.5 py-2.5"
+      >
+        <span class="relative size-4 shrink-0" aria-hidden="true">
+          <span
+            class="absolute inset-0 rounded-full border-2 border-[var(--theme-accent)]/25"
+          ></span>
+          <span
+            class="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-[var(--theme-accent)]"
+          ></span>
+        </span>
+        <div class="flex flex-col">
+          <span class="text-xs font-semibold text-[var(--theme-text)]">
+            {{ thinking ? "Thinking" : "Generating response" }}
+          </span>
+          <span
+            class="mt-0.5 font-mono text-[9px] uppercase tracking-wider text-[var(--theme-subtle)]"
+          >
+            {{ thinking ? "Reasoning locally" : "Writing locally" }}
+          </span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
