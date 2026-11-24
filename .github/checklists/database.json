@@ -1,0 +1,17 @@
+{
+  "name": "Database",
+  "paths": [
+    "server/db.ts",
+    "server/db/**",
+    "server/db/migrations/**/*.sql",
+    "server/data-encryption.ts",
+    "compose.yml"
+  ],
+  "checks": [
+    "Can the migration be applied to both an empty database and a database created by the previous migration?",
+    "Are schema changes safe to retry and consistent with the migration runner's transaction behavior?",
+    "Are foreign keys, uniqueness, indexes, nullability, and delete behavior correct for the intended data lifecycle?",
+    "Are queries parameterized, and are tenant/user ownership constraints preserved in reads and writes?",
+    "Do migrations preserve encrypted data, backup/restore behavior, and pgvector compatibility where applicable?"
+  ]
+}

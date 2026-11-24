@@ -1,0 +1,24 @@
+{
+  "name": "Security",
+  "paths": [
+    "server/**/*.ts",
+    "web/src/**/*.ts",
+    "web/src/**/*.vue",
+    "server/package.json",
+    "server/package-lock.json",
+    "web/package.json",
+    "web/package-lock.json",
+    ".github/**",
+    "compose.yml",
+    "**/Dockerfile",
+    "**/*.yml",
+    "**/*.yaml"
+  ],
+  "checks": [
+    "Is all untrusted input validated at the boundary, with no SQL, shell, or HTML injection paths introduced?",
+    "Are secrets, session tokens, passwords, encryption keys, and private user data excluded from logs, errors, and responses?",
+    "Do authentication and authorization checks protect every newly exposed operation and user-owned resource?",
+    "Are new dependencies necessary, maintained, and free of known high-severity vulnerabilities?",
+    "Do workflow and deployment changes preserve least privilege and avoid exposing write tokens or secrets to pull-request code?"
+  ]
+}

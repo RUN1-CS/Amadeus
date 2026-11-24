@@ -1,0 +1,11 @@
+{
+  "name": "Backend",
+  "paths": ["server/**/*.ts"],
+  "checks": [
+    "Are new or changed API routes validated against the documented request and response contract?",
+    "Are authentication, authorization, ownership checks, and error responses correct for the affected routes?",
+    "Are asynchronous operations, WebSocket events, and external-service failures handled without leaking sensitive data?",
+    "Are database calls made through the designated database layer and parameterized rather than interpolated?",
+    "Are resources such as database clients, sockets, timers, and child processes cleaned up on success, failure, and shutdown?"
+  ]
+}
