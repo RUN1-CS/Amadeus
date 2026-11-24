@@ -21,9 +21,7 @@ const {
   draft,
   isGenerating,
   messageList,
-  tsundere,
-  thinking,
-  streaming,
+  selectedOptions,
   selectedComfyModel,
   comfyModels,
   chats,
@@ -188,7 +186,7 @@ async function submitMessage() {
           <ChatMessageList
             :messages="messageList"
             :is-generating="isGenerating"
-            :thinking="thinking"
+            :thinking="selectedOptions.thinking"
             :expanded-attachments="expandedAttachments"
             :hidden-attachments="hiddenAttachments"
             :loaded-attachment-urls="loadedAttachmentUrls"
@@ -293,15 +291,27 @@ async function submitMessage() {
                   </select>
                 </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input v-model="tsundere" type="checkbox" class="accent-[var(--theme-accent)]" />
+                  <input
+                    v-model="selectedOptions.tsundere"
+                    type="checkbox"
+                    class="accent-[var(--theme-accent)]"
+                  />
                   Tsundere
                 </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input v-model="thinking" type="checkbox" class="accent-[var(--theme-accent)]" />
+                  <input
+                    v-model="selectedOptions.thinking"
+                    type="checkbox"
+                    class="accent-[var(--theme-accent)]"
+                  />
                   Thinking
                 </label>
                 <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input v-model="streaming" type="checkbox" class="accent-[var(--theme-accent)]" />
+                  <input
+                    v-model="selectedOptions.streaming"
+                    type="checkbox"
+                    class="accent-[var(--theme-accent)]"
+                  />
                   Stream
                 </label>
               </div>

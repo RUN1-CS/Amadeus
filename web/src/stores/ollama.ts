@@ -11,39 +11,23 @@ import type {
   User,
   ServerMessage,
 } from "../types/chat";
-
-const FILE_BLOCK = /(?:^|\n\n)File: ([^\n]+)\n```\n([\s\S]*?)\n```(?=\n\nFile: |$)/g;
-const tokenStorageKey = "amadeus_token";
-const sidebarStorageKey = "amadeus_sidebar";
-const selectedModelStorageKey = "amadeus_selected_model";
-const selectedComfyModelStorageKey = "amadeus_selected_comfy_model";
-
-// Keep below the server's WebSocket maxPayload (25 MiB) so a big image upload
-// shows an error instead of silently dropping the connection.
-const maxSocketPayloadChars = 24 * 1024 * 1024;
-const maxReconnectDelayMs = 30_000;
-
-// Created once: building a formatter per message is slow for long chats.
-const timeFormat = new Intl.DateTimeFormat([], {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
-type UploadKind = "image" | "pdf" | "file";
-type UploadResult = {
-  content: string;
-  images: string[];
-  attachments: { name: string; kind: UploadKind }[];
-};
-
-// WebSocket endpoint: VITE_WS_URL wins, otherwise match the page's protocol (wss on https).
-function socketUrl() {
-  const configured = (import.meta as unknown as { env?: Record<string, string | undefined> }).env
-    ?.VITE_WS_URL;
-  if (configured) return configured;
-  const scheme = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${scheme}://${window.location.hostname}:8080`;
-}
+import { mapSavedMessages } from "./ollama/messages";
+import { createSocketClient, maxSocketPayloadChars } from "./ollama/socket";
+import {
+  loadSelectedOptions,
+  selectedComfyModelStorageKey,
+  selectedModelStorageKey,
+  selectedOptionsStorageKey,
+  sidebarStorageKey,
+  tokenStorageKey,
+} from "./ollama/storage";
+import { createChunkBuffer } from "./ollama/streamBuffer";
+import {
+  buildLocalAttachments,
+  createObjectUrlTracker,
+  uploadFiles,
+  type UploadResult,
+} from "./ollama/uploads";
 
 export const useOllamaStore = defineStore("ollama", () => {
   const user = ref<User | null>(null);
@@ -57,31 +41,25 @@ export const useOllamaStore = defineStore("ollama", () => {
   const selectedModel = ref(localStorage.getItem(selectedModelStorageKey) ?? "");
   const comfyModels = ref<string[]>([]);
   const selectedComfyModel = ref(localStorage.getItem(selectedComfyModelStorageKey) ?? "");
+  const selectedOptions = ref(loadSelectedOptions());
   const defaultNegativePrompt = ref("");
   const draft = ref("");
   const isGenerating = ref(false);
-  const tsundere = ref(false);
-  const thinking = ref(false);
-  const streaming = ref(true);
   const messageList = ref<ChatMessage[]>([]);
   const api = createApiClient(() => token.value);
-
-  let socket: WebSocket | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-  let reconnectAttempts = 0;
 
   // Chat that the in-flight reply belongs to, so streamed text never lands in another chat.
   let generatingChatId: number | null = null;
   // Incremented per chat switch so a slow response can't overwrite a newer one.
   let selectRequestId = 0;
 
-  // Streamed chunks are buffered and applied once per frame instead of once per token.
-  let pendingContent = "";
-  let pendingThinking = "";
-  let flushHandle: number | null = null;
-
-  // Blob URLs created for outgoing attachments; revoked when the message list is replaced.
-  const objectUrls = new Set<string>();
+  const objectUrls = createObjectUrlTracker();
+  const chunks = createChunkBuffer((content, thinking) => addAssistantMessage(content, thinking));
+  const socket = createSocketClient({
+    getToken: () => token.value,
+    onMessage: receiveMessage,
+    onUnexpectedClose: handleSocketClose,
+  });
 
   watch(selectedModel, (model) => {
     localStorage.setItem(selectedModelStorageKey, model);
@@ -89,15 +67,13 @@ export const useOllamaStore = defineStore("ollama", () => {
   watch(selectedComfyModel, (model) => {
     localStorage.setItem(selectedComfyModelStorageKey, model);
   });
-
-  function revokeObjectUrls() {
-    for (const url of objectUrls) URL.revokeObjectURL(url);
-    objectUrls.clear();
-  }
-
-  function isSocketOpen() {
-    return socket !== null && socket.readyState === WebSocket.OPEN;
-  }
+  watch(
+    selectedOptions,
+    (options) => {
+      localStorage.setItem(selectedOptionsStorageKey, JSON.stringify(options));
+    },
+    { deep: true },
+  );
 
   // Save the auth token and user object after a successful login or signup.
   function storeSession(sessionToken: string, sessionUser: User) {
@@ -106,40 +82,13 @@ export const useOllamaStore = defineStore("ollama", () => {
     localStorage.setItem(tokenStorageKey, sessionToken);
   }
 
-  // Retry a dropped connection with exponential backoff while a session exists.
-  function scheduleReconnect() {
-    if (!token.value) return;
-    const delay = Math.min(maxReconnectDelayMs, 1_000 * 2 ** reconnectAttempts);
-    reconnectAttempts += 1;
-    reconnectTimer = setTimeout(connectSocket, delay);
-  }
-
-  // Open the WebSocket and authenticate it when the browser has a valid token.
-  function connectSocket() {
-    if (!token.value || socket) return;
-    clearTimeout(reconnectTimer);
-
-    const ws = new WebSocket(socketUrl());
-    socket = ws;
-    ws.addEventListener("open", () => {
-      reconnectAttempts = 0;
-      ws.send(JSON.stringify({ type: "authenticate", token: token.value }));
-    });
-    ws.addEventListener("message", (event) => {
-      if (typeof event.data === "string") receiveMessage(event.data);
-    });
-    ws.addEventListener("close", () => {
-      // A socket that was replaced or closed on purpose (logout) must not reconnect.
-      if (socket !== ws) return;
-      socket = null;
-      if (isGenerating.value) {
-        flushPending();
-        isGenerating.value = false;
-        generatingChatId = null;
-        addAssistantMessage("Error: Connection lost. Reconnecting…");
-      }
-      scheduleReconnect();
-    });
+  // A dropped connection mid-reply ends the reply with an error; the client reconnects itself.
+  function handleSocketClose() {
+    if (!isGenerating.value) return;
+    chunks.flush();
+    isGenerating.value = false;
+    generatingChatId = null;
+    addAssistantMessage("Error: Connection lost. Reconnecting…");
   }
 
   // Restore the active session during app startup and load the user's chats.
@@ -154,7 +103,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         logout();
         return;
       }
-      connectSocket();
+      socket.connect();
       try {
         // Independent requests: run them together.
         await Promise.all([loadComfyModels(), loadChats()]);
@@ -181,7 +130,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         body: JSON.stringify({ username, password }),
       });
       storeSession(response.token, response.user);
-      connectSocket();
+      socket.connect();
       await Promise.all([loadComfyModels(), loadChats()]);
     } catch (error) {
       authError.value = error instanceof Error ? error.message : "Authentication failed.";
@@ -232,21 +181,13 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   // Clear the in-memory session and close the socket when the user signs out.
   function logout() {
-    clearTimeout(reconnectTimer);
-    reconnectAttempts = 0;
-    const closing = socket;
-    socket = null; // detach first so the close handler doesn't try to reconnect
-    closing?.close();
-
-    if (flushHandle !== null) cancelAnimationFrame(flushHandle);
-    flushHandle = null;
-    pendingContent = "";
-    pendingThinking = "";
+    socket.disconnect();
+    chunks.reset();
     generatingChatId = null;
     isGenerating.value = false;
 
     selectRequestId += 1;
-    revokeObjectUrls();
+    objectUrls.revokeAll();
     user.value = null;
     token.value = null;
     chats.value = [];
@@ -279,7 +220,7 @@ export const useOllamaStore = defineStore("ollama", () => {
       createdAt: new Date().toISOString(),
     };
     selectRequestId += 1; // cancel any chat switch still in flight
-    revokeObjectUrls();
+    objectUrls.revokeAll();
     chats.value = [chat, ...chats.value];
     activeChatId.value = chat.id;
     messageList.value = [];
@@ -322,26 +263,9 @@ export const useOllamaStore = defineStore("ollama", () => {
     // The user picked another chat while this one was loading; drop the stale result.
     if (requestId !== selectRequestId) return;
 
-    revokeObjectUrls();
+    objectUrls.revokeAll();
     activeChatId.value = chatId;
-    messageList.value = response.messages.map((message) => {
-      const raw = message.content ?? "";
-      const parsed = message.role === "user" ? splitSavedContent(raw) : null;
-      const saved = message.attachments ?? [];
-      const extracted = (parsed?.files ?? []).map((file) => ({
-        ...saved.find((s) => s.name === file.name),
-        ...file,
-      }));
-
-      return {
-        id: message.id,
-        role: message.role,
-        content: parsed ? parsed.text : raw,
-        model: message.model,
-        time: timeFormat.format(new Date(message.createdAt)),
-        attachments: extracted.length ? extracted : saved,
-      };
-    });
+    messageList.value = mapSavedMessages(response.messages);
   }
 
   // Normalize the server's model list and preserve the current selection if still valid.
@@ -372,27 +296,6 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
   }
 
-  // Buffer a streamed chunk and apply it on the next animation frame.
-  function queueChunk(content: string, thinkingContent: string) {
-    pendingContent += content;
-    pendingThinking += thinkingContent;
-    if (flushHandle === null) flushHandle = requestAnimationFrame(flushPending);
-  }
-
-  // Apply any buffered chunks now. Called before every non-chunk event to keep ordering.
-  function flushPending() {
-    if (flushHandle !== null) {
-      cancelAnimationFrame(flushHandle);
-      flushHandle = null;
-    }
-    if (!pendingContent && !pendingThinking) return;
-    const content = pendingContent;
-    const thinkingContent = pendingThinking;
-    pendingContent = "";
-    pendingThinking = "";
-    addAssistantMessage(content, thinkingContent);
-  }
-
   // True when a streamed reply belongs to a chat the user has navigated away from.
   function isForOtherChat() {
     return generatingChatId !== null && generatingChatId !== activeChatId.value;
@@ -411,16 +314,16 @@ export const useOllamaStore = defineStore("ollama", () => {
     // Plain streamed chunks take the cheap buffered path.
     if (message.type === "message" && !message.full && !message.message.attachments?.length) {
       if (isForOtherChat()) return;
-      queueChunk(message.message.content ?? "", message.message.thinking ?? "");
+      chunks.queue(message.message.content ?? "", message.message.thinking ?? "");
       return;
     }
 
-    flushPending();
+    chunks.flush();
 
     if (message.type === "models" && Array.isArray(message.models)) {
       setModels(message.models);
     } else if (message.type === "authenticated") {
-      socket?.send(JSON.stringify({ type: "fetch_models" }));
+      socket.send(JSON.stringify({ type: "fetch_models" }));
     } else if (message.type === "message") {
       if (isForOtherChat()) return;
       addAssistantMessage(
@@ -479,7 +382,7 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   // Empty the currently visible message list.
   function clearMessages() {
-    revokeObjectUrls();
+    objectUrls.revokeAll();
     messageList.value = [];
   }
 
@@ -493,14 +396,14 @@ export const useOllamaStore = defineStore("ollama", () => {
     const content = draft.value.trim();
     const files = attachments?.length ? attachments : null;
     const chatId = activeChatId.value;
-    if ((!content && !files) || !chatId || isGenerating.value || !isSocketOpen()) return false;
+    if ((!content && !files) || !chatId || isGenerating.value || !socket.isOpen()) return false;
 
     // Block double submits while files are uploading, not just while the model replies.
     isGenerating.value = true;
 
     let uploaded: UploadResult;
     try {
-      uploaded = await uploadFiles(chatId, files);
+      uploaded = await uploadFiles(api, chatId, files);
     } catch (error) {
       // Do not send a message that refers to files the server did not receive.
       isGenerating.value = false;
@@ -516,9 +419,9 @@ export const useOllamaStore = defineStore("ollama", () => {
       images: uploaded.images,
       attachments: uploaded.attachments,
       generativeModel: selectedComfyModel.value,
-      tsundere: tsundere.value,
-      thinking: thinking.value,
-      stream: streaming.value,
+      tsundere: selectedOptions.value.tsundere,
+      thinking: selectedOptions.value.thinking,
+      stream: selectedOptions.value.streaming,
     });
 
     if (payload.length > maxSocketPayloadChars) {
@@ -531,8 +434,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     }
 
     // The socket may have dropped while the upload was running.
-    const activeSocket = socket;
-    if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
+    if (!socket.isOpen()) {
       isGenerating.value = false;
       showError(null, "Connection lost. Please try again in a moment.");
       return false;
@@ -543,71 +445,13 @@ export const useOllamaStore = defineStore("ollama", () => {
       role: "user",
       content,
       time: "now",
-      attachments: Array.from(files ?? []).map((file, index) => {
-        const url = URL.createObjectURL(file);
-        objectUrls.add(url);
-        return {
-          name: file.name,
-          url,
-          lastModified: file.lastModified,
-          kind:
-            uploaded.attachments[index]?.kind ??
-            (file.type.startsWith("image/")
-              ? "image"
-              : file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
-                ? "pdf"
-                : "file"),
-        };
-      }),
+      attachments: buildLocalAttachments(files, uploaded, objectUrls),
     });
     draft.value = "";
     generatingChatId = chatId;
-    activeSocket.send(payload);
+    socket.send(payload);
 
     return true;
-  }
-
-  function splitSavedContent(raw: string) {
-    const files: { name: string; content: string }[] = [];
-    const text = raw
-      .replace(FILE_BLOCK, (_match, name: string, content: string) => {
-        files.push({ name, content });
-        return "";
-      })
-      .trim();
-    return { text, files };
-  }
-
-  // Upload document and image files to the server for model ingestion.
-  async function uploadFiles(chatId: number, files: FileList | null): Promise<UploadResult> {
-    const result: UploadResult = { content: "", images: [], attachments: [] };
-    if (!files?.length) return result;
-
-    const formData = new FormData();
-    for (const file of files) {
-      formData.append("files", file);
-    }
-
-    const response = await api.request<{
-      files: {
-        name: string;
-        content?: string;
-        kind: UploadKind;
-        data?: string;
-      }[];
-    }>(`/api/chats/${chatId}/upload`, { method: "POST", body: formData });
-
-    const textBlocks: string[] = [];
-    for (const file of response.files) {
-      result.attachments.push({ name: file.name, kind: file.kind });
-      if (file.kind === "image") {
-        if (file.data) result.images.push(file.data);
-      } else {
-        textBlocks.push(`File: ${file.name}\n\`\`\`\n${file.content ?? ""}\n\`\`\``);
-      }
-    }
-    result.content = textBlocks.join("\n\n");
-    return result;
   }
 
   return {
@@ -620,11 +464,9 @@ export const useOllamaStore = defineStore("ollama", () => {
     authError,
     models,
     selectedModel,
+    selectedOptions,
     draft,
     isGenerating,
-    tsundere,
-    thinking,
-    streaming,
     comfyModels,
     selectedComfyModel,
     defaultNegativePrompt,
