@@ -10,14 +10,14 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.1",
-    "@playwright/mcp": "^0.0.83",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@playwright/mcp": "^0.0.86",
     "busboy": "^1.6.0",
     "ollama": "^0.6.4",
     "pdf-parse": "^2.4.5",
     "pg": "^8.16.3",
     "pino": "^10.1.0",
-    "ws": "^8.22.0"
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@types/busboy": "^1.5.5",
