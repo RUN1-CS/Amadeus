@@ -1,4 +1,4 @@
-FROM node:25-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ COPY ai ./ai
 COPY classes ./classes
 RUN npm run build
 
-FROM node:25-bookworm-slim
+FROM node:26-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production
