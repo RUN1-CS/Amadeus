@@ -9,10 +9,10 @@
 
 @layer base {
   :root {
-    --theme-accent: #c36b46;
-    --theme-background: #f7f5f0;
-    --theme-surface: #fffdf9;
-    --theme-text: #24221f;
+    --theme-accent: #55e6ff;
+    --theme-background: #101827;
+    --theme-surface: #1c2a40;
+    --theme-text: #f0f6fc;
     --theme-sidebar: color-mix(in srgb, var(--theme-background) 88%, var(--theme-text));
     --theme-input: color-mix(in srgb, var(--theme-surface) 86%, var(--theme-background));
     --theme-border: color-mix(in srgb, var(--theme-text) 16%, var(--theme-background));
