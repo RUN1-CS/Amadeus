@@ -7,7 +7,7 @@ import { useOllamaStore } from "@/stores/ollama";
 
 const store = useOllamaStore();
 const router = useRouter();
-const { chats, activeChatId, sidebarVisible, user } = storeToRefs(store);
+const { chats, activeChatId, sidebarVisible, user, comfyStatus } = storeToRefs(store);
 const { createNewChat, deleteChat, renameChat, selectChat, setSidebarVisible, logout } = store;
 const renameChatId = ref<number | null>(null);
 const renameValue = ref("");
@@ -45,17 +45,7 @@ async function confirmDelete() {
     class="hidden w-[278px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-[18px] py-7 md:flex"
   >
     <div class="flex items-center gap-3 px-2 pb-8">
-      <div
-        class="grid size-8 place-items-center rounded-lg bg-[var(--theme-accent)] font-mono text-lg font-medium text-[#f9f7f2]"
-      >
-        O
-      </div>
-      <div>
-        <p class="text-[13px] font-extrabold">Ollama desk</p>
-        <p class="mt-1 font-mono text-[10px] uppercase tracking-[0.09em] text-[var(--theme-muted)]">
-          Local intelligence
-        </p>
-      </div>
+      <img src="/amadeus.svg" alt="Amadeus logo" class="w-48" />
       <button
         class="ml-auto bg-transparent text-2xl leading-none text-[var(--theme-muted)]"
         aria-label="Collapse sidebar"
@@ -121,6 +111,27 @@ async function confirmDelete() {
     <div class="mt-auto border-t border-[var(--theme-border)] px-2 pt-4">
       <div class="flex items-center gap-2 font-mono text-[10px] text-[var(--theme-muted)]">
         <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Ollama connected
+      </div>
+      <div class="mt-2 flex items-center gap-2 font-mono text-[10px] text-[var(--theme-muted)]">
+        <span
+          class="size-1.5 rounded-full"
+          :class="
+            comfyStatus === 'connected'
+              ? 'bg-[var(--theme-accent)]'
+              : comfyStatus === 'checking'
+                ? 'bg-[var(--theme-subtle)]'
+                : 'bg-[#c96a4a]'
+          "
+        ></span>
+        <span>
+          {{
+            comfyStatus === "connected"
+              ? "ComfyUI connected"
+              : comfyStatus === "checking"
+                ? "Checking ComfyUI"
+                : "ComfyUI unavailable"
+          }}
+        </span>
       </div>
       <div class="mt-4 flex gap-2 text-[10px] text-[var(--theme-subtle)]">
         <span class="max-w-[130px] truncate text-[var(--theme-muted)]">{{ user?.username }}</span>

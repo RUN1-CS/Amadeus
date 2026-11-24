@@ -168,12 +168,6 @@ async function submitMessage() {
             class="hidden items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)] sm:flex"
             ><span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Ready</span
           >
-          <button
-            class="bg-transparent text-lg text-[var(--theme-muted)]"
-            aria-label="More conversation options"
-          >
-            •••
-          </button>
         </div>
       </header>
 
@@ -233,104 +227,12 @@ async function submitMessage() {
               aria-label="Message your local assistant"
               @keydown="handleComposerKeydown"
             ></textarea>
-            <div
-              class="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--theme-border)] pt-3"
-            >
-              <div class="flex items-center gap-4">
-                <button
-                  type="button"
-                  class="text-xs text-[var(--theme-muted)]"
-                  aria-label="Attach a file"
-                  @click="composerActions.attach"
-                >
-                  ＋ Attach
-                </button>
-                <input
-                  ref="attachmentInput"
-                  class="hidden"
-                  type="file"
-                  multiple
-                  accept="image/*,application/pdf,.pdf,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
-                  aria-label="Choose files to attach"
-                  @change="handleFileSelection"
-                />
-                <label
-                  class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
-                  for="composer-model"
-                >
-                  Model
-                  <select
-                    id="composer-model"
-                    v-model="ollamaStore.selectedModel"
-                    class="max-w-[150px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
-                  >
-                    <option v-if="ollamaStore.models.length === 0" value="" disabled>
-                      Waiting for models...
-                    </option>
-                    <option v-for="model in ollamaStore.models" :key="model" :value="model">
-                      {{ model }}
-                    </option>
-                  </select>
-                </label>
-                <label
-                  class="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
-                  for="comfy-model"
-                >
-                  Image model
-                  <select
-                    id="comfy-model"
-                    v-model="selectedComfyModel"
-                    class="max-w-[170px] rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
-                  >
-                    <option v-if="comfyModels.length === 0" value="" disabled>
-                      No checkpoints found
-                    </option>
-                    <option v-for="model in comfyModels" :key="model" :value="model">
-                      {{ model }}
-                    </option>
-                  </select>
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input
-                    v-model="selectedOptions.tsundere"
-                    type="checkbox"
-                    class="accent-[var(--theme-accent)]"
-                  />
-                  Tsundere
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input
-                    v-model="selectedOptions.thinking"
-                    type="checkbox"
-                    class="accent-[var(--theme-accent)]"
-                  />
-                  Thinking
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input
-                    v-model="selectedOptions.streaming"
-                    type="checkbox"
-                    class="accent-[var(--theme-accent)]"
-                  />
-                  Stream
-                </label>
-              </div>
-              <button
-                class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
-                type="submit"
-                :disabled="(!draft.trim() && !attachments.length) || isGenerating"
-                aria-label="Send message"
-              >
-                ↑
-              </button>
-            </div>
-            <div v-if="attachments.length" class="mt-3 space-y-2 px-2">
+            <div v-if="attachments.length" class="mb-3 space-y-2 px-2">
               <div
                 v-for="(file, index) in attachments"
                 :key="getFileKey(file)"
                 class="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)] p-2.5 text-xs"
               >
-                <!-- Header with File Name, Hide Toggle, Expand Toggle, and Delete -->
                 <div
                   class="flex items-center justify-between font-mono text-[11px] text-[var(--theme-muted)]"
                 >
@@ -371,7 +273,6 @@ async function submitMessage() {
                   :title="file.name"
                   class="mt-1.5 h-80 w-full rounded bg-[var(--theme-sidebar)]"
                 ></iframe>
-                <!-- Interactive Code / Text Preview Block -->
                 <div
                   v-else-if="!isPdfFile(file) && !hiddenAttachments[getFileKey(file)]"
                   class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
@@ -386,6 +287,102 @@ async function submitMessage() {
                     getPreviewText(file)
                   }}</pre>
                 </div>
+              </div>
+            </div>
+            <div class="border-t border-[var(--theme-border)] pt-3">
+              <div class="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  class="rounded-md px-2 py-1.5 text-xs text-[var(--theme-muted)] transition hover:bg-[var(--theme-background)] hover:text-[var(--theme-text)]"
+                  aria-label="Attach a file"
+                  @click="composerActions.attach"
+                >
+                  ＋ Attach
+                </button>
+                <input
+                  ref="attachmentInput"
+                  class="hidden"
+                  type="file"
+                  multiple
+                  accept="image/*,application/pdf,.pdf,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
+                  aria-label="Choose files to attach"
+                  @change="handleFileSelection"
+                />
+                <button
+                  class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+                  type="submit"
+                  :disabled="(!draft.trim() && !attachments.length) || isGenerating"
+                  aria-label="Send message"
+                >
+                  <span
+                    v-if="isGenerating"
+                    class="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                    aria-hidden="true"
+                  ></span>
+                  <span v-else>↑</span>
+                </button>
+              </div>
+              <div class="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
+                <label
+                  class="flex min-w-[150px] flex-1 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
+                  for="composer-model"
+                >
+                  Model
+                  <select
+                    id="composer-model"
+                    v-model="ollamaStore.selectedModel"
+                    class="min-w-0 flex-1 rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
+                  >
+                    <option v-if="ollamaStore.models.length === 0" value="" disabled>
+                      Waiting for models...
+                    </option>
+                    <option v-for="model in ollamaStore.models" :key="model" :value="model">
+                      {{ model }}
+                    </option>
+                  </select>
+                </label>
+                <label
+                  class="flex min-w-[170px] flex-1 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
+                  for="comfy-model"
+                >
+                  Image model
+                  <select
+                    id="comfy-model"
+                    v-model="selectedComfyModel"
+                    class="min-w-0 flex-1 rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
+                  >
+                    <option v-if="comfyModels.length === 0" value="" disabled>
+                      No checkpoints found
+                    </option>
+                    <option v-for="model in comfyModels" :key="model" :value="model">
+                      {{ model }}
+                    </option>
+                  </select>
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
+                  <input
+                    v-model="selectedOptions.tsundere"
+                    type="checkbox"
+                    class="accent-[var(--theme-accent)]"
+                  />
+                  Tsundere
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
+                  <input
+                    v-model="selectedOptions.thinking"
+                    type="checkbox"
+                    class="accent-[var(--theme-accent)]"
+                  />
+                  Thinking
+                </label>
+                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
+                  <input
+                    v-model="selectedOptions.streaming"
+                    type="checkbox"
+                    class="accent-[var(--theme-accent)]"
+                  />
+                  Stream
+                </label>
               </div>
             </div>
           </form>

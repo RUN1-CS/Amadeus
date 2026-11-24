@@ -7,10 +7,10 @@ export type Theme = {
 };
 
 export const defaultTheme: Theme = {
-  accent: "#c36b46",
-  background: "#f7f5f0",
-  surface: "#fffdf9",
-  text: "#24221f",
+  accent: "#55e6ff",
+  background: "#101827",
+  surface: "#1c2a40",
+  text: "#f0f6fc",
 };
 
 const themeStorageKey = "amadeus_theme";

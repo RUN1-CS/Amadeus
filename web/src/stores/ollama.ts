@@ -40,6 +40,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   const models = ref<string[]>([]);
   const selectedModel = ref(localStorage.getItem(selectedModelStorageKey) ?? "");
   const comfyModels = ref<string[]>([]);
+  const comfyStatus = ref<"checking" | "connected" | "unavailable">("checking");
   const selectedComfyModel = ref(localStorage.getItem(selectedComfyModelStorageKey) ?? "");
   const selectedOptions = ref(loadSelectedOptions());
   const defaultNegativePrompt = ref("");
@@ -281,17 +282,21 @@ export const useOllamaStore = defineStore("ollama", () => {
   }
 
   async function loadComfyModels() {
+    comfyStatus.value = "checking";
     try {
       const response = await api.request<{
         models: string[];
         defaultNegativePrompt: string;
       }>("/api/comfy/models");
       comfyModels.value = response.models;
+      comfyStatus.value = response.models.length > 0 ? "connected" : "unavailable";
       defaultNegativePrompt.value = response.defaultNegativePrompt;
       if (!selectedComfyModel.value || !comfyModels.value.includes(selectedComfyModel.value)) {
         selectedComfyModel.value = comfyModels.value[0] ?? "";
       }
     } catch (error) {
+      comfyModels.value = [];
+      comfyStatus.value = "unavailable";
       console.error("Could not load ComfyUI models:", error);
     }
   }
@@ -468,6 +473,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     draft,
     isGenerating,
     comfyModels,
+    comfyStatus,
     selectedComfyModel,
     defaultNegativePrompt,
     messageList,
