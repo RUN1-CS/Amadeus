@@ -1,0 +1,195 @@
+name: Amadeus CI
+
+on:
+  workflow_call:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  code-quality:
+    uses: ./.github/workflows/code-quality.yml
+    permissions:
+      contents: read
+
+  security:
+    uses: ./.github/workflows/security.yml
+    permissions:
+      contents: read
+
+  backend:
+    name: Backend Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js and install dependencies
+        uses: ./.github/actions/setup-environment
+        with:
+          project-directory: server
+          install-dependencies: true
+      - name: Compile server
+        working-directory: server
+        run: npm run build
+
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js and install dependencies
+        uses: ./.github/actions/setup-environment
+        with:
+          project-directory: web
+          install-dependencies: true
+      - name: Type-check and build frontend
+        working-directory: web
+        run: npm run build
+
+  database:
+    name: Database Migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: amadeus
+          POSTGRES_USER: amadeus
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U amadeus -d amadeus"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://amadeus:ci-only-password@localhost:5432/amadeus
+    steps:
+      - name: Check out source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js and install dependencies
+        uses: ./.github/actions/setup-environment
+        with:
+          project-directory: server
+          install-dependencies: true
+      - name: Compile migration runner
+        working-directory: server
+        run: npm run build
+      - name: Include SQL migrations in build output
+        working-directory: server
+        run: |
+          mkdir -p dist/db/migrations
+          cp db/migrations/*.sql dist/db/migrations/
+      - name: Apply migrations
+        working-directory: server
+        run: node dist/db/migrate.js
+      - name: Re-apply migrations (must be a no-op)
+        working-directory: server
+        run: node dist/db/migrate.js
+      - name: Verify schema and pgvector
+        working-directory: server
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readdir } from "node:fs/promises";
+          import { Pool } from "pg";
+
+          const expected = (await readdir("db/migrations"))
+            .filter((file) => file.endsWith(".sql"))
+            .sort();
+          assert(expected.length > 0, "No SQL migrations found");
+
+          const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+          try {
+            const { rows } = await pool.query(
+              "SELECT name FROM migrations ORDER BY name",
+            );
+            const applied = new Set(rows.map((row) => row.name));
+            const missing = expected.filter((name) => !applied.has(name));
+            assert.deepEqual(missing, [], `Migrations not applied: ${missing}`);
+
+            const vector = await pool.query(
+              "SELECT 1 FROM pg_extension WHERE extname = 'vector'",
+            );
+            assert.equal(vector.rowCount, 1, "pgvector extension is missing");
+            console.log(`${expected.length} migrations applied; pgvector available.`);
+          } finally {
+            await pool.end();
+          }
+          NODE
+
+  architecture:
+    name: Architecture Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: ./.github/actions/setup-environment
+        with:
+          project-directory: server
+      - name: Enforce service boundaries
+        run: node --experimental-strip-types .github/scripts/check-architecture.ts
+
+  ci-result:
+    name: CI Result
+    if: always()
+    timeout-minutes: 5
+    needs:
+      - code-quality
+      - security
+      - backend
+      - frontend
+      - database
+      - architecture
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Require every verification job to pass
+        env:
+          CODE_QUALITY: ${{ needs.code-quality.result }}
+          SECURITY: ${{ needs.security.result }}
+          BACKEND: ${{ needs.backend.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          DATABASE: ${{ needs.database.result }}
+          ARCHITECTURE: ${{ needs.architecture.result }}
+        run: |
+          failed=0
+          check_result() {
+            if [[ "$2" != success ]]; then
+              echo "::error::$1 completed with status: $2"
+              failed=1
+            fi
+          }
+          check_result CODE_QUALITY "$CODE_QUALITY"
+          check_result SECURITY "$SECURITY"
+          check_result BACKEND "$BACKEND"
+          check_result FRONTEND "$FRONTEND"
+          check_result DATABASE "$DATABASE"
+          check_result ARCHITECTURE "$ARCHITECTURE"
+          exit "$failed"

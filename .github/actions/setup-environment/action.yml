@@ -1,0 +1,26 @@
+name: Set up Node.js project
+description: Set up the supported Node.js version and optionally install locked dependencies.
+
+inputs:
+  project-directory:
+    description: Directory containing the npm package and lockfile.
+    required: true
+  install-dependencies:
+    description: Run npm ci in the project directory.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+      with:
+        node-version: 24.12.0
+        cache: npm
+        cache-dependency-path: ${{ inputs.project-directory }}/package-lock.json
+    - name: Install locked dependencies
+      if: inputs.install-dependencies == 'true'
+      shell: bash
+      working-directory: ${{ inputs.project-directory }}
+      run: npm ci

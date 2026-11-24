@@ -1,0 +1,40 @@
+name: Amadeus Review Checklist
+
+on:
+  workflow_run:
+    workflows:
+      - Amadeus CI Entry
+    types:
+      - completed
+
+permissions: {}
+
+concurrency:
+  group: checklist-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: Generate reviewer checklist
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion != 'cancelled'
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check out trusted default-branch scripts
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: ./.github/actions/setup-environment
+        with:
+          project-directory: server
+      - name: Generate and publish the reviewer checklist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node --experimental-strip-types .github/scripts/generate-checklist.ts

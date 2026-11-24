@@ -1,0 +1,11 @@
+{
+  "name": "Frontend",
+  "paths": ["web/src/**/*.ts", "web/src/**/*.vue", "web/*.ts"],
+  "checks": [
+    "Does the UI handle loading, empty, success, and error states without losing user input?",
+    "Are API calls made through the shared frontend service, with server errors handled appropriately?",
+    "Are authentication state, permissions, and navigation guards consistent with the server behavior?",
+    "Are user-provided text, Markdown, files, and generated content rendered safely?",
+    "Do interactive controls remain accessible by keyboard and expose suitable labels and status feedback?"
+  ]
+}
