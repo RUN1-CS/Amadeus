@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { createApiClient } from "@/services/api";
+import { localizeServerError } from "@/services/serverErrors";
 import { useOllamaStore } from "@/stores/ollama";
 
 type ModelType = "ollama" | "comfyui";
@@ -11,6 +12,11 @@ type ModelCatalog = {
   ollama: ManagedModel[];
   comfyui: ManagedModel[];
   errors: { ollama?: string; comfyui?: string };
+  errorLocalizationCodes?: { ollama?: string; comfyui?: string };
+  errorLocalizationParams?: {
+    ollama?: Record<string, string | number>;
+    comfyui?: Record<string, string | number>;
+  };
 };
 
 const store = useOllamaStore();
@@ -105,8 +111,14 @@ onMounted(() => void loadModels());
       >
         <header class="border-b border-[var(--theme-border)] px-4 py-3">
           <h3 class="font-semibold">{{ $t(group.title) }}</h3>
-          <p v-if="catalog.errors[group.key]" class="mt-1 text-xs text-[#853c2a]">
-            {{ catalog.errors[group.key] }}
+              <p v-if="catalog.errors[group.key]" class="mt-1 text-xs text-[#853c2a]">
+                {{
+                  localizeServerError({
+                    error: catalog.errors[group.key],
+                    localizationCode: catalog.errorLocalizationCodes?.[group.key],
+                    localizationParams: catalog.errorLocalizationParams?.[group.key],
+                  })
+                }}
           </p>
         </header>
         <ul

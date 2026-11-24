@@ -10,7 +10,7 @@ import { handleAuthRequest } from "./http/auth.js";
 import { handleChatRequest } from "./http/chats.js";
 import { handleComfyRequest } from "./http/comfy.js";
 import { handleMemoryRequest } from "./http/memories.js";
-import { requireUser, sendJson, sendNoContent } from "./http/shared.js";
+import { requireUser, sendError, sendJson, sendNoContent } from "./http/shared.js";
 import { HttpError } from "./classes/httpError.js";
 
 async function handleRequest(
@@ -39,14 +39,20 @@ async function handleRequest(
     if (await handleChatRequest(request, response, path, user)) return;
     if (await handleMemoryRequest(request, response, path, user)) return;
 
-    sendJson(response, 404, { error: "Not found." });
+    sendError(response, 404, "NOT_FOUND", "Not found.");
   } catch (error) {
     if (response.headersSent) {
       response.destroy();
       return;
     }
     if (error instanceof HttpError) {
-      sendJson(response, error.status, { error: error.message });
+      sendError(
+        response,
+        error.status,
+        error.localizationCode,
+        error.message,
+        error.localizationParams,
+      );
       return;
     }
     if (
@@ -55,19 +61,18 @@ async function handleRequest(
       "code" in error &&
       error.code === "23505"
     ) {
-      sendJson(response, 409, { error: "That username is already taken." });
+      sendError(response, 409, "USERNAME_TAKEN", "That username is already taken.");
       return;
     }
     logger.error(
       { event: "http.request_failed", errorType: getErrorType(error) },
       "HTTP request failed",
     );
-    sendJson(response, 500, {
-      error:
-        process.env.NODE_ENV === "production"
-          ? "Something went wrong."
-          : getErrorMessage(error),
-    });
+    const message =
+      process.env.NODE_ENV === "production"
+        ? "Something went wrong."
+        : getErrorMessage(error);
+    sendError(response, 500, "UNEXPECTED_SERVER_ERROR", message, { message });
   }
 }
 

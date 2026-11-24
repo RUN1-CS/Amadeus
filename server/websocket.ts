@@ -11,6 +11,7 @@ import {
   releaseModelForImage,
 } from "./ai.js";
 import { getErrorMessage } from "./errors.js";
+import { LocalizedError } from "./classes/localizedError.js";
 import {
   getAiModelAccess,
   getChatMessages,
@@ -51,7 +52,11 @@ async function requireOwnedChat(
   action: string,
 ) {
   if (!chatId || !(await ownsChat(user.id, chatId))) {
-    throw new Error(`Choose a valid chat before ${action}.`);
+    throw new LocalizedError(
+      "CHOOSE_VALID_CHAT",
+      `Choose a valid chat before ${action}.`,
+      { action },
+    );
   }
   return chatId;
 }
@@ -69,7 +74,10 @@ async function generateAndSendImage(
     !(await isAdmin(user.id)) &&
     !(await isAiModelEnabled("comfyui", data.generativeModel ?? ""))
   ) {
-    throw new Error("This image model is not available to regular users.");
+    throw new LocalizedError(
+      "IMAGE_MODEL_UNAVAILABLE",
+      "This image model is not available to regular users.",
+    );
   }
   await releaseModelForImage(data.model ?? "");
   const image = await generateImage(
@@ -156,13 +164,20 @@ async function sendMessage(
     !(await isAdmin(user.id)) &&
     !(await isAiModelEnabled("ollama", data.model ?? ""))
   ) {
-    throw new Error("This chat model is not available to regular users.");
+    throw new LocalizedError(
+      "CHAT_MODEL_UNAVAILABLE",
+      "This chat model is not available to regular users.",
+    );
   }
 
   // getChatMessages returns nothing for chats the user doesn't own, so it doubles as the ownership check.
   const history = chatId ? await getChatMessages(user.id, chatId) : undefined;
   if (!chatId || !history) {
-    throw new Error("Choose a valid chat before sending a message.");
+    throw new LocalizedError(
+      "CHOOSE_VALID_CHAT",
+      "Choose a valid chat before sending a message.",
+      { action: "sending a message" },
+    );
   }
 
   const request = await buildChatRequest(
@@ -243,7 +258,12 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
     const data = parseMessage(rawMessage);
     if (data.type === "authenticate") {
       const user = await getCachedUserBySession(data.token);
-      if (!user || !data.token) throw new Error("Authentication required.");
+      if (!user || !data.token) {
+        throw new LocalizedError(
+          "AUTHENTICATION_REQUIRED",
+          "Authentication required.",
+        );
+      }
       socketTokens.set(ws, data.token);
       send(ws, { type: "authenticated", user });
       return;
@@ -251,7 +271,12 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
 
     const token = socketTokens.get(ws);
     const user = token ? await getCachedUserBySession(token) : undefined;
-    if (!user) throw new Error("Authenticate the WebSocket before using it.");
+    if (!user) {
+      throw new LocalizedError(
+        "WEBSOCKET_AUTHENTICATION_REQUIRED",
+        "Authenticate the WebSocket before using it.",
+      );
+    }
 
     if (data.type === "fetch_models") {
       const result = getModels();
@@ -281,7 +306,14 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
                 enabled.has(model.name),
             ),
       });
-      if (result.error) send(ws, { type: "error", error: result.error });
+      if (result.error) {
+        send(ws, {
+          type: "error",
+          error: result.error,
+          localizationCode: "AI_SERVICE_ERROR",
+          localizationParams: { details: result.error },
+        });
+      }
     } else if (data.type === "message") {
       await sendMessage(ws, user, data);
     } else if (data.type === "generate_image") {
@@ -292,7 +324,19 @@ async function handleMessage(ws: WebSocket, rawMessage: RawData) {
       { event: "websocket.request_failed", errorType: getErrorType(error) },
       "WebSocket request failed",
     );
-    send(ws, { type: "error", error: getErrorMessage(error) });
+    const message = getErrorMessage(error);
+    send(ws, {
+      type: "error",
+      error: message,
+      localizationCode:
+        error instanceof LocalizedError
+          ? error.localizationCode
+          : "UNEXPECTED_SERVER_ERROR",
+      localizationParams:
+        error instanceof LocalizedError
+          ? error.localizationParams
+          : { message },
+    });
     send(ws, { type: "done" });
   }
 }

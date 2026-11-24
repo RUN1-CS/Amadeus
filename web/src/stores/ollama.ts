@@ -4,6 +4,7 @@ import { defineStore } from "pinia";
 
 import { createApiClient } from "@/services/api";
 import i18n from "@/i18n";
+import { localizeServerError } from "@/services/serverErrors";
 import type {
   Chat,
   ChatMessage,
@@ -344,7 +345,11 @@ export const useOllamaStore = defineStore("ollama", () => {
     } else if (message.type === "error") {
       isGenerating.value = false;
       generatingChatId = null;
-      addAssistantMessage(i18n.global.t("chat.errorPrefix", { message: message.error }));
+      addAssistantMessage(
+        i18n.global.t("chat.errorPrefix", {
+          message: localizeServerError(message),
+        }),
+      );
     } else if (message.type === "done") {
       isGenerating.value = false;
       generatingChatId = null;

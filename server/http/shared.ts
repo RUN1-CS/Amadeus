@@ -29,6 +29,20 @@ export function sendJson(
   response.end(JSON.stringify(body));
 }
 
+export function sendError(
+  response: ServerResponse,
+  status: number,
+  localizationCode: string,
+  error: string,
+  localizationParams?: Record<string, string | number>,
+) {
+  sendJson(response, status, {
+    error,
+    localizationCode,
+    ...(localizationParams ? { localizationParams } : {}),
+  });
+}
+
 export function sendNoContent(response: ServerResponse) {
   response.writeHead(204, corsHeaders);
   response.end();
@@ -43,7 +57,7 @@ export async function readJson(request: IncomingMessage) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += buffer.length;
     if (size > maxJsonBytes) {
-      throw new HttpError(413, "Request body is too large.");
+      throw new HttpError(413, "REQUEST_BODY_TOO_LARGE", "Request body is too large.");
     }
     chunks.push(buffer);
   }
@@ -54,7 +68,7 @@ export async function readJson(request: IncomingMessage) {
       unknown
     >;
   } catch {
-    throw new HttpError(400, "Request body must be valid JSON.");
+    throw new HttpError(400, "INVALID_JSON_BODY", "Request body must be valid JSON.");
   }
 }
 
@@ -67,7 +81,9 @@ export async function requireUser(
     ? authorization.slice("Bearer ".length)
     : undefined;
   const user = await getCachedUserBySession(token);
-  if (!user) sendJson(response, 401, { error: "Authentication required." });
+  if (!user) {
+    sendError(response, 401, "AUTHENTICATION_REQUIRED", "Authentication required.");
+  }
   return user;
 }
 
@@ -83,6 +99,7 @@ export async function receiveBackupUpload(
     request.resume();
     throw new HttpError(
       413,
+      "BACKUP_UPLOAD_TOO_LARGE",
       "Backup file exceeds the configured upload limit.",
     );
   }
@@ -95,6 +112,7 @@ export async function receiveBackupUpload(
         callback(
           new HttpError(
             413,
+            "BACKUP_UPLOAD_TOO_LARGE",
             "Backup file exceeds the configured upload limit.",
           ),
         );
@@ -104,7 +122,9 @@ export async function receiveBackupUpload(
     },
   });
   await pipeline(request, limit, createWriteStream(filePath, { flags: "w" }));
-  if (size === 0) throw new HttpError(400, "Backup file is empty.");
+  if (size === 0) {
+    throw new HttpError(400, "EMPTY_BACKUP_FILE", "Backup file is empty.");
+  }
 }
 
 export function getOllamaModelNames(models: unknown[]) {

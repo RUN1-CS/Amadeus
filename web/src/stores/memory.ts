@@ -2,9 +2,17 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 
 import i18n from "@/i18n";
+import { createServerError, type ServerErrorPayload } from "@/services/serverErrors";
 import type { Memory, MemoryPayload } from "@/types/chat";
 
 const token = localStorage.getItem("amadeus_token");
+
+async function throwResponseError(response: Response, fallback: string) {
+  if (!response.ok) {
+    const payload = (await response.json()) as ServerErrorPayload;
+    throw createServerError(payload, fallback);
+  }
+}
 
 export const useMemoryStore = defineStore("memory", () => {
   const memories = ref<Memory[]>([]);
@@ -27,7 +35,7 @@ export const useMemoryStore = defineStore("memory", () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error(i18n.global.t("memory.fetchFailed"));
+      await throwResponseError(response, i18n.global.t("memory.fetchFailed"));
       console.log("Fetched memories:", await response.clone());
       memories.value = await response.json();
     } catch (err) {
@@ -50,7 +58,7 @@ export const useMemoryStore = defineStore("memory", () => {
         },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error(i18n.global.t("memory.createFailed"));
+      await throwResponseError(response, i18n.global.t("memory.createFailed"));
       const newMemory: Memory = await response.json();
       memories.value.unshift(newMemory);
       return newMemory;
@@ -75,7 +83,7 @@ export const useMemoryStore = defineStore("memory", () => {
         },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error(i18n.global.t("memory.updateFailed"));
+      await throwResponseError(response, i18n.global.t("memory.updateFailed"));
       const updated: Memory = await response.json();
       const index = memories.value.findIndex((m) => m.id === id);
       if (index !== -1) memories.value[index] = updated;
@@ -99,7 +107,7 @@ export const useMemoryStore = defineStore("memory", () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error(i18n.global.t("memory.deleteRequestFailed"));
+      await throwResponseError(response, i18n.global.t("memory.deleteRequestFailed"));
       memories.value = memories.value.filter((m) => m.id !== id);
     } catch (err) {
       error.value =

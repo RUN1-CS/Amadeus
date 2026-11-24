@@ -8,6 +8,7 @@ import AdminBackupsPanel from "@/components/admin/AdminBackupsPanel.vue";
 import AdminModelAccessPanel from "@/components/admin/AdminModelAccessPanel.vue";
 import AdminUsersPanel from "@/components/admin/AdminUsersPanel.vue";
 import { createApiClient } from "@/services/api";
+import { localizeServerError } from "@/services/serverErrors";
 import { useOllamaStore } from "@/stores/ollama";
 
 type AdminOverview = {
@@ -20,8 +21,20 @@ type AdminOverview = {
   };
   recentUsers: { username: string; createdAt: string }[];
   services: {
-    ollama: { status: string; models: string[]; error?: string };
-    comfyui: { status: string; models: string[]; error?: string };
+    ollama: {
+      status: string;
+      models: string[];
+      error?: string;
+      errorLocalizationCode?: string;
+      errorLocalizationParams?: Record<string, string | number>;
+    };
+    comfyui: {
+      status: string;
+      models: string[];
+      error?: string;
+      errorLocalizationCode?: string;
+      errorLocalizationParams?: Record<string, string | number>;
+    };
   };
 };
 
@@ -171,7 +184,15 @@ onMounted(() => void loadOverview());
                 <p class="mt-2 text-sm text-[var(--theme-muted)]">
                   {{ service.models.length ? service.models.join(", ") : $t("admin.noModels") }}
                 </p>
-                <p v-if="service.error" class="mt-2 text-xs text-[#853c2a]">{{ service.error }}</p>
+                <p v-if="service.error" class="mt-2 text-xs text-[#853c2a]">
+                  {{
+                    localizeServerError({
+                      error: service.error,
+                      localizationCode: service.errorLocalizationCode,
+                      localizationParams: service.errorLocalizationParams,
+                    })
+                  }}
+                </p>
               </article>
             </div>
           </section>
