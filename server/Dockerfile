@@ -8,6 +8,7 @@ RUN npm ci
 COPY *.ts tsconfig.json ./
 COPY db ./db
 COPY http ./http
+COPY ai ./ai
 COPY classes ./classes
 RUN npm run build
 
