@@ -90,9 +90,28 @@
   },
   "common": {
     "backToChat": "Back to chat",
+    "backHome": "Back to home",
     "cancel": "Cancel",
     "retry": "Try again",
     "loading": "Loading..."
+  },
+  "errors": {
+    "403": {
+      "title": "Access denied",
+      "description": "Y-you don't have permission to access this page, baka!"
+    },
+    "404": {
+      "title": "Page not found",
+      "description": "I couldn't find that page, okay? It may have moved or been deleted!"
+    },
+    "500": {
+      "title": "Something went wrong",
+      "description": "A-an unexpected error occurred. Try again in a moment, okay?"
+    },
+    "503": {
+      "title": "Service unavailable",
+      "description": "The service is temporarily unavailable. Try again shortly, baka!"
+    }
   },
   "settings": {
     "settings": "Settings",

@@ -90,9 +90,28 @@
   },
   "common": {
     "backToChat": "Return to discourse",
+    "backHome": "Return to the homeward page",
     "cancel": "Abandon",
     "retry": "Try once more",
     "loading": "Loading..."
+  },
+  "errors": {
+    "403": {
+      "title": "Access denied",
+      "description": "Thou hast not permission to enter this page."
+    },
+    "404": {
+      "title": "Page not found",
+      "description": "The page thou seekest could not be found. It may have moved or ceased to exist."
+    },
+    "500": {
+      "title": "Something hath gone awry",
+      "description": "An unforeseen error hath occurred. Pray, try again anon."
+    },
+    "503": {
+      "title": "Service unavailable",
+      "description": "The service is temporarily unavailable. Pray, try again anon."
+    }
   },
   "settings": {
     "settings": "Settings",

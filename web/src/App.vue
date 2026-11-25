@@ -96,7 +96,12 @@ watch(activeChatId, () => {
 void initializeAuth();
 watchEffect(() => {
   if (authLoading.value) return;
-  if (!user.value && route.path !== "/login" && route.path !== "/register") {
+  if (
+    !user.value &&
+    route.path !== "/login" &&
+    route.path !== "/register" &&
+    route.meta.errorPage !== true
+  ) {
     void router.replace("/login");
   }
   if (user.value && (route.path === "/login" || route.path === "/register")) {

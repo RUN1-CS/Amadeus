@@ -90,9 +90,28 @@
   },
   "common": {
     "backToChat": "← Back to conversations",
+    "backHome": "Back to home",
     "cancel": "Cancel",
     "retry": "Try again",
     "loading": "Loading..."
+  },
+  "errors": {
+    "403": {
+      "title": "Access denied",
+      "description": "You don't have permission to access this page."
+    },
+    "404": {
+      "title": "Page not found",
+      "description": "We couldn't find the page you're looking for. It may have moved or no longer exists."
+    },
+    "500": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. Please try again in a moment."
+    },
+    "503": {
+      "title": "Service unavailable",
+      "description": "The service is temporarily unavailable. Please try again shortly."
+    }
   },
   "settings": {
     "settings": "Settings",

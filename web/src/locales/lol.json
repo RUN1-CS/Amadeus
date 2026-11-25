@@ -90,9 +90,28 @@
   },
   "common": {
     "backToChat": "← Go back to teh talky-talks",
+    "backHome": "Go back home",
     "cancel": "Nevermind",
     "retry": "Try again plz",
     "loading": "Loadin'..."
+  },
+  "errors": {
+    "403": {
+      "title": "No access for u",
+      "description": "U don't have permission to see dis page. Soz!"
+    },
+    "404": {
+      "title": "Page not foundz",
+      "description": "We couldn't find teh page u wanted. Maybe it moved or went bye-bye."
+    },
+    "500": {
+      "title": "Oopsie, sumfing went wrong",
+      "description": "An unexpected oopsie happened. Try again in a little bit, k?"
+    },
+    "503": {
+      "title": "Service unavailablez",
+      "description": "Teh service is temporarily unavailable. Try again soon, k?"
+    }
   },
   "settings": {
     "settings": "Settings stuffs",

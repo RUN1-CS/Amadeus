@@ -90,9 +90,28 @@
   },
   "common": {
     "backToChat": "← Zpět ke konverzacím",
+    "backHome": "Zpět na úvodní stránku",
     "cancel": "Zrušit",
     "retry": "Zkusit znovu",
     "loading": "Načítám..."
+  },
+  "errors": {
+    "403": {
+      "title": "Přístup odepřen",
+      "description": "K této stránce nemáte oprávnění."
+    },
+    "404": {
+      "title": "Stránka nebyla nalezena",
+      "description": "Požadovanou stránku se nepodařilo najít. Možná byla přesunuta nebo už neexistuje."
+    },
+    "500": {
+      "title": "Něco se pokazilo",
+      "description": "Došlo k neočekávané chybě. Zkuste to prosím za chvíli znovu."
+    },
+    "503": {
+      "title": "Služba není dostupná",
+      "description": "Služba je dočasně nedostupná. Zkuste to prosím později."
+    }
   },
   "settings": {
     "settings": "Nastavení",
