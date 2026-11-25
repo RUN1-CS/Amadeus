@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 
@@ -111,7 +119,11 @@ async function api(
   return { response, body };
 }
 
-function jsonRequest(method: string, body: unknown, token?: string): RequestInit {
+function jsonRequest(
+  method: string,
+  body: unknown,
+  token?: string,
+): RequestInit {
   return {
     method,
     headers: {
@@ -124,7 +136,9 @@ function jsonRequest(method: string, body: unknown, token?: string): RequestInit
 
 describe("HTTP API", () => {
   it("handles OPTIONS requests and sets CORS headers", async () => {
-    const { response, body } = await api("/api/anything", { method: "OPTIONS" });
+    const { response, body } = await api("/api/anything", {
+      method: "OPTIONS",
+    });
     expect(response.status).toBe(204);
     expect(response.headers.get("access-control-allow-origin")).toBe("*");
     expect(body).toBeUndefined();
@@ -204,9 +218,7 @@ describe("HTTP API", () => {
     const listResponse = await api("/api/chats", {
       headers: { Authorization: "Bearer valid-token" },
     });
-    expect(listResponse.body.chats).toEqual([
-      { id: 12, title: "Alice chat" },
-    ]);
+    expect(listResponse.body.chats).toEqual([{ id: 12, title: "Alice chat" }]);
 
     const messagesResponse = await api("/api/chats/99/messages", {
       headers: { Authorization: "Bearer valid-token" },
@@ -342,7 +354,11 @@ describe("HTTP API", () => {
     mocks.createMemory.mockResolvedValue(memory);
     const { response, body } = await api(
       "/api/memories",
-      jsonRequest("POST", { content: " Likes concise answers ", source: "manual" }, "valid-token"),
+      jsonRequest(
+        "POST",
+        { content: " Likes concise answers ", source: "manual" },
+        "valid-token",
+      ),
     );
     expect(response.status).toBe(201);
     expect(body).toEqual({ memory });
