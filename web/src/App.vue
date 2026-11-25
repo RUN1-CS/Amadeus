@@ -100,7 +100,7 @@ watchEffect(() => {
     !user.value &&
     route.path !== "/login" &&
     route.path !== "/register" &&
-    route.meta.errorPage !== true
+    (route.meta.errorPage !== true || route.path === "/")
   ) {
     void router.replace("/login");
   }

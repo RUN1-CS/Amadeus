@@ -97,6 +97,7 @@ export const useOllamaStore = defineStore("ollama", () => {
   // Restore the active session during app startup and load the user's chats.
   async function initializeAuth() {
     if (!token.value || user.value) return;
+    const sessionToken = token.value;
     authLoading.value = true;
     try {
       try {
@@ -106,7 +107,6 @@ export const useOllamaStore = defineStore("ollama", () => {
         logout();
         return;
       }
-      socket.connect();
       try {
         // Independent requests: run them together.
         await Promise.all([loadComfyModels(), loadChats()]);
@@ -114,6 +114,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         // The session is valid here, so a failed chat load shouldn't sign the user out.
         console.error("Failed to load chats", error);
       }
+      if (token.value === sessionToken && user.value) socket.connect();
     } finally {
       authLoading.value = false;
     }
@@ -133,8 +134,8 @@ export const useOllamaStore = defineStore("ollama", () => {
         body: JSON.stringify({ username, password }),
       });
       storeSession(response.token, response.user);
-      socket.connect();
       await Promise.all([loadComfyModels(), loadChats()]);
+      if (token.value === response.token && user.value) socket.connect();
     } catch (error) {
       authError.value =
         error instanceof Error ? error.message : i18n.global.t("auth.authenticationFailed");

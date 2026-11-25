@@ -138,6 +138,12 @@ function jsonRequest(
 }
 
 describe("HTTP API", () => {
+  it("reports server readiness without authentication", async () => {
+    const { response, body } = await api("/health");
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ status: "ok" });
+  });
+
   it("handles OPTIONS requests and sets CORS headers", async () => {
     const { response, body } = await api("/api/anything", {
       method: "OPTIONS",

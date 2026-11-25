@@ -64,6 +64,16 @@ requests.
 
 ## REST API
 
+### Health check
+
+```http
+GET /health
+```
+
+Returns `200 {"status":"ok"}` after the server has completed startup and is
+accepting requests. Docker Compose uses this endpoint before starting the web
+service.
+
 ### Register
 
 ```http

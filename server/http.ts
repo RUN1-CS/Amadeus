@@ -29,6 +29,11 @@ async function handleRequest(
   const path = url.pathname;
 
   try {
+    if (request.method === "GET" && path === "/health") {
+      sendJson(response, 200, { status: "ok" });
+      return;
+    }
+
     if (await handleAuthRequest(request, response, path)) return;
 
     const user = await requireUser(request, response);
