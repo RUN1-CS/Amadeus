@@ -220,6 +220,79 @@ describe("WebSocket API", () => {
     ws.close();
   });
 
+  it("rejects chat requests when the model is unavailable", async () => {
+    mocks.isAiModelEnabled.mockResolvedValue(false);
+    const ws = await openSocket();
+    await sendAndCollect(ws, {
+      type: "authenticate",
+      token: "valid-token",
+    });
+
+    const messages = await collectUntilDone(ws, {
+      type: "message",
+      chatId: 12,
+      model: "missing-model",
+      prompt: "Hello",
+    });
+    expect(messages[0]).toMatchObject({
+      type: "error",
+      localizationCode: "CHAT_MODEL_UNAVAILABLE",
+    });
+    expect(messages.at(-1)?.type).toBe("done");
+    expect(mocks.buildChatRequest).not.toHaveBeenCalled();
+    ws.close();
+  });
+
+  it("returns an error when Ollama is unavailable", async () => {
+    mocks.chatWithTools.mockRejectedValue(new Error("Ollama unavailable"));
+    const ws = await openSocket();
+    await sendAndCollect(ws, {
+      type: "authenticate",
+      token: "valid-token",
+    });
+
+    const messages = await collectUntilDone(ws, {
+      type: "message",
+      chatId: 12,
+      model: "test-model",
+      prompt: "Hello",
+    });
+    expect(messages.at(-1)?.type).toBe("done");
+    expect(messages.find((message) => message.type === "error")).toMatchObject({
+      localizationCode: "UNEXPECTED_SERVER_ERROR",
+      error: "Ollama unavailable",
+    });
+    ws.close();
+  });
+
+  it("reports generation interruption after streaming partial output", async () => {
+    mocks.chatWithTools.mockImplementation(
+      async (_request: unknown, onChunk: (chunk: unknown) => void) => {
+        onChunk({ content: "partial output" });
+        throw new Error("Generation interrupted");
+      },
+    );
+    const ws = await openSocket();
+    await sendAndCollect(ws, {
+      type: "authenticate",
+      token: "valid-token",
+    });
+
+    const messages = await collectUntilDone(ws, {
+      type: "message",
+      chatId: 12,
+      model: "test-model",
+      prompt: "Continue",
+      stream: true,
+    });
+    expect(messages.some((message) => message.message?.content === "partial output")).toBe(true);
+    expect(messages.find((message) => message.type === "error")).toMatchObject({
+      error: "Generation interrupted",
+    });
+    expect(messages.at(-1)?.type).toBe("done");
+    ws.close();
+  });
+
   it("supports disconnection and reconnection", async () => {
     const first = await openSocket();
     await sendAndCollect(first, {
