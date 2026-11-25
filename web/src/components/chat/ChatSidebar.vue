@@ -135,9 +135,22 @@ async function confirmDelete() {
           }}
         </span>
       </div>
-      <div class="mt-4 flex gap-2 text-[10px] text-[var(--theme-subtle)]">
-        <span class="max-w-[130px] truncate text-[var(--theme-muted)]">{{ user?.username }}</span>
-        <span>·</span>
+      <div class="mt-4 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-input)] p-3">
+        <div class="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            class="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--theme-background)] text-sm font-bold uppercase text-[var(--theme-accent)]"
+          >
+            {{ user?.username?.charAt(0) }}
+          </span>
+          <strong class="min-w-0 truncate text-xs text-[var(--theme-text)]">
+            {{ user?.username }}
+          </strong>
+        </div>
+      </div>
+      <div
+        class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-[var(--theme-subtle)]"
+      >
         <button
           class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
           @click="router.push('/settings')"

@@ -1,26 +1,8 @@
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import type { Language } from "@/types/chat.ts";
+import { finalAvailableLanguages } from "@/i18n";
 
 const { locale } = useI18n({ useScope: "global" });
-
-const availableLanguages: Language[] = [
-  { code: "en", name: "English" },
-  { code: "cs", name: "Česky" },
-  { code: "de", name: "Deutsch" },
-  { code: "ja", name: "日本語" },
-];
-
-const availableNoveltyLanguages: Language[] = [
-  { code: "en-GB-x-shakespeare", name: "Shakespearean English" },
-  { code: "ja-x-tsundere", name: "Tsundere Japanese-English" },
-  { code: "lol", name: "LOLCat" },
-];
-
-const finalAvailableLanguages: Language[] =
-  import.meta.env.VITE_NOVELTY === "true"
-    ? [...availableLanguages, ...availableNoveltyLanguages]
-    : availableLanguages;
 
 function saveLanguage(event: Event): void {
   const selectedLanguage = (event.target as HTMLSelectElement).value;

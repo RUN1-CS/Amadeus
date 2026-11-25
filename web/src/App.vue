@@ -195,9 +195,9 @@ async function submitMessage() {
 
         <div class="mx-auto mt-8 w-full max-w-3xl">
           <div class="mb-3 flex flex-wrap items-center gap-2">
-            <span class="mr-1 font-mono text-[10px] uppercase tracking-wider text-[#9a948b]"
-              >{{ $t("app.tryAsking") }}</span
-            >
+            <span class="mr-1 font-mono text-[10px] uppercase tracking-wider text-[#9a948b]">{{
+              $t("app.tryAsking")
+            }}</span>
             <button
               class="rounded-full border border-[var(--theme-border)] px-3 py-1.5 text-[11px] text-[var(--theme-muted)] transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
               @click="selectPrompt($t('app.summarizePrompt'))"
@@ -218,31 +218,29 @@ async function submitMessage() {
             </button>
           </div>
           <form
-            class="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-input)] p-3 shadow-[0_8px_30px_rgba(122,108,91,0.08)]"
+            class="overflow-hidden rounded-2xl border border-[var(--theme-border)] bg-[var(--theme-input)] shadow-[0_8px_30px_rgba(122,108,91,0.08)] transition focus-within:border-[var(--theme-accent)]/60"
             @submit.prevent="submitMessage"
           >
-            <textarea
-              v-model="draft"
-              rows="1"
-              :placeholder="$t('app.messagePlaceholder')"
-              class="min-h-14 w-full resize-none border-0 bg-transparent px-2 py-1 text-sm leading-6 text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-subtle)]"
-              :aria-label="$t('app.messageAriaLabel')"
-              @keydown="handleComposerKeydown"
-            ></textarea>
-            <div v-if="attachments.length" class="mb-3 space-y-2 px-2">
+            <!-- Attachments -->
+            <div
+              v-if="attachments.length"
+              class="space-y-2 border-b border-[var(--theme-border)] p-3"
+            >
               <div
                 v-for="(file, index) in attachments"
                 :key="getFileKey(file)"
-                class="rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)] p-2.5 text-xs"
+                class="overflow-hidden rounded-lg border border-[var(--theme-border)] bg-[var(--theme-background)]"
               >
-                <div
-                  class="flex items-center justify-between font-mono text-[11px] text-[var(--theme-muted)]"
-                >
-                  <span class="font-semibold">{{ file.name }}</span>
-                  <div class="flex items-center gap-2">
+                <div class="flex items-center justify-between gap-2 px-3 py-2">
+                  <span
+                    class="min-w-0 truncate font-mono text-[11px] font-semibold text-[var(--theme-text)]"
+                  >
+                    {{ file.name }}
+                  </span>
+                  <div class="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
-                      class="text-[10px] uppercase text-[var(--theme-accent)] hover:underline"
+                      class="rounded px-1.5 py-0.5 font-mono text-[10px] uppercase text-[var(--theme-accent)] transition hover:bg-[var(--theme-sidebar)]"
                       @click="toggleExpand(file)"
                     >
                       {{
@@ -253,7 +251,7 @@ async function submitMessage() {
                     </button>
                     <button
                       type="button"
-                      class="text-[10px] uppercase text-[var(--theme-muted)] hover:underline"
+                      class="rounded px-1.5 py-0.5 font-mono text-[10px] uppercase text-[var(--theme-muted)] transition hover:bg-[var(--theme-sidebar)] hover:text-[var(--theme-text)]"
                       @click="toggleHideAttachment(file)"
                     >
                       {{
@@ -264,7 +262,7 @@ async function submitMessage() {
                     </button>
                     <button
                       type="button"
-                      class="text-[var(--theme-subtle)] hover:text-[var(--theme-accent)]"
+                      class="grid size-6 place-items-center rounded text-base leading-none text-[var(--theme-subtle)] transition hover:bg-[var(--theme-sidebar)] hover:text-[var(--theme-accent)]"
                       :aria-label="$t('app.removeAttachment', { filename: file.name })"
                       @click="removeAttachment(index)"
                     >
@@ -277,11 +275,11 @@ async function submitMessage() {
                   v-if="isPdfFile(file) && !hiddenAttachments[getFileKey(file)]"
                   :src="loadedAttachmentUrls[getFileKey(file)]"
                   :title="file.name"
-                  class="mt-1.5 h-80 w-full rounded bg-[var(--theme-sidebar)]"
+                  class="h-80 w-full border-t border-[var(--theme-border)] bg-[var(--theme-sidebar)]"
                 ></iframe>
                 <div
                   v-else-if="!isPdfFile(file) && !hiddenAttachments[getFileKey(file)]"
-                  class="mt-1.5 cursor-pointer rounded bg-[var(--theme-sidebar)] p-2 font-mono text-[10px] text-[var(--theme-text)] leading-relaxed"
+                  class="cursor-pointer border-t border-[var(--theme-border)] bg-[var(--theme-sidebar)] p-3 font-mono text-[10px] leading-relaxed text-[var(--theme-text)]"
                   @click="toggleExpand(file)"
                 >
                   <pre
@@ -295,49 +293,70 @@ async function submitMessage() {
                 </div>
               </div>
             </div>
-            <div class="border-t border-[var(--theme-border)] pt-3">
-              <div class="flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  class="rounded-md px-2 py-1.5 text-xs text-[var(--theme-muted)] transition hover:bg-[var(--theme-background)] hover:text-[var(--theme-text)]"
-                  :aria-label="$t('app.attachFile')"
-                  @click="composerActions.attach"
-                >
-                  ＋ {{ $t("app.attach") }}
-                </button>
-                <input
-                  ref="attachmentInput"
-                  class="hidden"
-                  type="file"
-                  multiple
-                  accept="image/*,application/pdf,.pdf,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
-                  :aria-label="$t('app.chooseFiles')"
-                  @change="handleFileSelection"
-                />
-                <button
-                  class="grid size-9 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
-                  type="submit"
-                  :disabled="(!draft.trim() && !attachments.length) || isGenerating"
-                  :aria-label="$t('app.sendMessage')"
-                >
-                  <span
-                    v-if="isGenerating"
-                    class="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
-                    aria-hidden="true"
-                  ></span>
-                  <span v-else>↑</span>
-                </button>
-              </div>
-              <div class="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
-                <label
-                  class="flex min-w-[150px] flex-1 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
-                  for="composer-model"
-                >
-                  {{ $t("app.model") }}
+
+            <!-- Input row -->
+            <div class="flex items-end gap-2 p-3">
+              <button
+                type="button"
+                class="grid size-9 shrink-0 place-items-center rounded-lg text-lg text-[var(--theme-muted)] transition hover:bg-[var(--theme-background)] hover:text-[var(--theme-text)]"
+                :aria-label="$t('app.attachFile')"
+                :title="$t('app.attachFile')"
+                @click="composerActions.attach"
+              >
+                <span aria-hidden="true">＋</span>
+              </button>
+
+              <textarea
+                v-model="draft"
+                rows="1"
+                :placeholder="$t('app.messagePlaceholder')"
+                class="max-h-48 min-h-9 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-sm leading-6 text-[var(--theme-text)] outline-none placeholder:text-[var(--theme-subtle)]"
+                :aria-label="$t('app.messageAriaLabel')"
+                @keydown="handleComposerKeydown"
+              ></textarea>
+
+              <input
+                ref="attachmentInput"
+                class="hidden"
+                type="file"
+                multiple
+                accept="image/*,application/pdf,.pdf,.txt,.md,.json,.csv,.ts,.js,.vue,.py,.html,.css"
+                :aria-label="$t('app.chooseFiles')"
+                @change="handleFileSelection"
+              />
+
+              <button
+                class="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--theme-accent)] text-lg text-white transition hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40"
+                type="submit"
+                :disabled="(!draft.trim() && !attachments.length) || isGenerating"
+                :aria-label="$t('app.sendMessage')"
+              >
+                <span
+                  v-if="isGenerating"
+                  class="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                  aria-hidden="true"
+                ></span>
+                <span v-else>↑</span>
+              </button>
+            </div>
+
+            <!-- Toolbar -->
+            <div
+              class="flex flex-col gap-2 border-t border-[var(--theme-border)] bg-[var(--theme-background)]/40 px-3 py-2 lg:flex-row lg:items-center lg:justify-between"
+            >
+              <!-- Model pickers -->
+              <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                <div class="flex min-w-0 items-center gap-1.5">
+                  <label
+                    for="composer-model"
+                    class="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
+                  >
+                    {{ $t("app.model") }}
+                  </label>
                   <select
                     id="composer-model"
                     v-model="ollamaStore.selectedModel"
-                    class="min-w-0 flex-1 rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
+                    class="min-w-0 max-w-full rounded-full border border-[var(--theme-border)] bg-[var(--theme-input)] px-3 py-1 text-xs text-[var(--theme-text)] outline-none transition focus:border-[var(--theme-accent)] sm:max-w-48"
                   >
                     <option v-if="ollamaStore.models.length === 0" value="" disabled>
                       {{ $t("app.waitingForModels") }}
@@ -346,16 +365,19 @@ async function submitMessage() {
                       {{ model }}
                     </option>
                   </select>
-                </label>
-                <label
-                  class="flex min-w-[170px] flex-1 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
-                  for="comfy-model"
-                >
-                  {{ $t("app.imageModel") }}
+                </div>
+
+                <div class="flex min-w-0 items-center gap-1.5">
+                  <label
+                    for="comfy-model"
+                    class="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[var(--theme-muted)]"
+                  >
+                    {{ $t("app.imageModel") }}
+                  </label>
                   <select
                     id="comfy-model"
                     v-model="selectedComfyModel"
-                    class="min-w-0 flex-1 rounded-md border border-[var(--theme-border)] bg-[var(--theme-background)] px-2 py-1.5 font-sans text-xs normal-case tracking-normal text-[var(--theme-text)] outline-none focus:border-[var(--theme-accent)]"
+                    class="min-w-0 max-w-full rounded-full border border-[var(--theme-border)] bg-[var(--theme-input)] px-3 py-1 text-xs text-[var(--theme-text)] outline-none transition focus:border-[var(--theme-accent)] sm:max-w-48"
                   >
                     <option v-if="comfyModels.length === 0" value="" disabled>
                       {{ $t("app.noCheckpoints") }}
@@ -364,30 +386,26 @@ async function submitMessage() {
                       {{ model }}
                     </option>
                   </select>
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input
-                    v-model="selectedOptions.tsundere"
-                    type="checkbox"
-                    class="accent-[var(--theme-accent)]"
-                  />
-                  {{ $t("app.tsundere") }}
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input
-                    v-model="selectedOptions.thinking"
-                    type="checkbox"
-                    class="accent-[var(--theme-accent)]"
-                  />
-                  {{ $t("app.thinking") }}
-                </label>
-                <label class="flex items-center gap-1.5 text-xs text-[var(--theme-muted)]">
-                  <input
-                    v-model="selectedOptions.streaming"
-                    type="checkbox"
-                    class="accent-[var(--theme-accent)]"
-                  />
-                  {{ $t("app.stream") }}
+                </div>
+              </div>
+
+              <!-- Option chips -->
+              <div class="flex flex-wrap items-center gap-1.5">
+                <label
+                  v-for="opt in [
+                    { key: 'tsundere', label: $t('app.tsundere') },
+                    { key: 'thinking', label: $t('app.thinking') },
+                    { key: 'streaming', label: $t('app.stream') },
+                  ]"
+                  :key="opt.key"
+                  class="cursor-pointer select-none"
+                >
+                  <input v-model="selectedOptions[opt.key]" type="checkbox" class="peer sr-only" />
+                  <span
+                    class="inline-flex items-center rounded-full border border-[var(--theme-border)] bg-[var(--theme-input)] px-3 py-1 text-xs text-[var(--theme-muted)] transition-colors hover:text-[var(--theme-text)] peer-checked:border-[var(--theme-accent)] peer-checked:bg-[var(--theme-accent)]/10 peer-checked:text-[var(--theme-accent)] peer-focus-visible:ring-1 peer-focus-visible:ring-[var(--theme-accent)]"
+                  >
+                    {{ opt.label }}
+                  </span>
                 </label>
               </div>
             </div>
