@@ -39,6 +39,9 @@ jobs:
       - name: Compile server
         working-directory: server
         run: npm run build
+      - name: Run server tests
+        working-directory: server
+        run: npm test
 
   frontend:
     name: Frontend Build
@@ -59,6 +62,9 @@ jobs:
       - name: Type-check and build frontend
         working-directory: web
         run: npm run build
+      - name: Run frontend tests
+        working-directory: web
+        run: npm test
 
   database:
     name: Database Migrations
