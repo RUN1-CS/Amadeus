@@ -26,6 +26,7 @@ import { clearUserCache } from "../sessions.js";
 import {
   readJson,
   receiveBackupUpload,
+  sendError,
   sendJson,
   corsHeaders,
   getOllamaModelNames,
@@ -34,7 +35,12 @@ import type { PublicUser } from "../types.js";
 
 async function requireAdmin(userId: number, response: ServerResponse) {
   if (await isAdmin(userId)) return true;
-  sendJson(response, 403, { error: "Administrator access is required." });
+  sendError(
+    response,
+    403,
+    "ADMINISTRATOR_REQUIRED",
+    "Administrator access is required.",
+  );
   return false;
 }
 
@@ -58,7 +64,7 @@ export async function handleAdminRequest(
   if (path === "/api/admin/backups" && request.method === "POST") {
     if (!(await requireAdmin(user.id, response))) return true;
     if (!databaseBackupsEnabled) {
-      sendJson(response, 503, { error: "Database backups are disabled." });
+      sendError(response, 503, "BACKUPS_DISABLED", "Database backups are disabled.");
       return true;
     }
 
@@ -77,15 +83,18 @@ export async function handleAdminRequest(
   if (path === "/api/admin/backups/restore" && request.method === "POST") {
     if (!(await requireAdmin(user.id, response))) return true;
     if (!databaseBackupsEnabled) {
-      sendJson(response, 503, { error: "Database backups are disabled." });
+      sendError(response, 503, "BACKUPS_DISABLED", "Database backups are disabled.");
       return true;
     }
     if (
       !request.headers["content-type"]?.startsWith("application/octet-stream")
     ) {
-      sendJson(response, 415, {
-        error: "Upload the backup as application/octet-stream.",
-      });
+      sendError(
+        response,
+        415,
+        "INVALID_BACKUP_CONTENT_TYPE",
+        "Upload the backup as application/octet-stream.",
+      );
       return true;
     }
 
@@ -123,6 +132,12 @@ export async function handleAdminRequest(
               : "unavailable",
           models: ollamaNames,
           error: ollamaModels.error,
+          errorLocalizationCode: ollamaModels.error
+            ? "AI_SERVICE_ERROR"
+            : undefined,
+          errorLocalizationParams: ollamaModels.error
+            ? { details: ollamaModels.error }
+            : undefined,
         },
         comfyui: {
           status: comfyModels.error
@@ -134,6 +149,12 @@ export async function handleAdminRequest(
               : "unavailable",
           models: comfyModels.models,
           error: comfyModels.error,
+          errorLocalizationCode: comfyModels.error
+            ? "AI_SERVICE_ERROR"
+            : undefined,
+          errorLocalizationParams: comfyModels.error
+            ? { details: comfyModels.error }
+            : undefined,
         },
       },
     });
@@ -144,7 +165,7 @@ export async function handleAdminRequest(
     if (!(await requireAdmin(user.id, response))) return true;
     const beforeId = url.searchParams.get("beforeId") ?? undefined;
     if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
-      sendJson(response, 400, { error: "Invalid user pagination cursor." });
+      sendError(response, 400, "INVALID_USER_CURSOR", "Invalid user pagination cursor.");
       return true;
     }
     sendJson(response, 200, await getAdminUsers(beforeId));
@@ -158,15 +179,15 @@ export async function handleAdminRequest(
     const beforeId = url.searchParams.get("beforeId") ?? undefined;
     const levels = ["trace", "debug", "info", "warn", "error", "fatal"];
     if (level && !levels.includes(level)) {
-      sendJson(response, 400, { error: "Invalid log level filter." });
+      sendError(response, 400, "INVALID_LOG_LEVEL", "Invalid log level filter.");
       return true;
     }
     if (event && event.length > 120) {
-      sendJson(response, 400, { error: "Log event filter is too long." });
+      sendError(response, 400, "LOG_EVENT_TOO_LONG", "Log event filter is too long.");
       return true;
     }
     if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
-      sendJson(response, 400, { error: "Invalid log pagination cursor." });
+      sendError(response, 400, "INVALID_LOG_CURSOR", "Invalid log pagination cursor.");
       return true;
     }
     sendJson(response, 200, await getServerLogs({ level, event, beforeId }));
@@ -187,6 +208,18 @@ export async function handleAdminRequest(
         ollama: getModels().error,
         comfyui: getComfyModels().error,
       },
+      errorLocalizationCodes: {
+        ollama: getModels().error ? "AI_SERVICE_ERROR" : undefined,
+        comfyui: getComfyModels().error ? "AI_SERVICE_ERROR" : undefined,
+      },
+      errorLocalizationParams: {
+        ollama: getModels().error
+          ? { details: getModels().error }
+          : undefined,
+        comfyui: getComfyModels().error
+          ? { details: getComfyModels().error }
+          : undefined,
+      },
     });
     return true;
   }
@@ -202,9 +235,12 @@ export async function handleAdminRequest(
       !modelName ||
       typeof body.enabled !== "boolean"
     ) {
-      sendJson(response, 400, {
-        error: "Provide a valid model type, model name, and enabled state.",
-      });
+      sendError(
+        response,
+        400,
+        "INVALID_MODEL_ACCESS",
+        "Provide a valid model type, model name, and enabled state.",
+      );
       return true;
     }
     const availableModels =
@@ -212,7 +248,7 @@ export async function handleAdminRequest(
         ? getOllamaModelNames(getModels().models)
         : getComfyModels().models;
     if (!availableModels.includes(modelName)) {
-      sendJson(response, 404, { error: "AI model not found." });
+      sendError(response, 404, "AI_MODEL_NOT_FOUND", "AI model not found.");
       return true;
     }
     await setAiModelEnabled(modelType, modelName, body.enabled);

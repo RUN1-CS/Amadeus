@@ -6,6 +6,6 @@ const router = useRouter();
 
 <template>
   <button class="mb-8 text-sm text-[var(--theme-accent)] hover:underline" @click="router.push('/')">
-    ← Back to chat
+    {{ $t("common.backToChat") }}
   </button>
 </template>

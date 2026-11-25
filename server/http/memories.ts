@@ -6,7 +6,7 @@ import {
   updateMemory,
 } from "../db.js";
 import type { PublicUser } from "../types.js";
-import { readJson, sendJson } from "./shared.js";
+import { readJson, sendError, sendJson } from "./shared.js";
 
 export async function handleMemoryRequest(
   request: IncomingMessage,
@@ -23,7 +23,7 @@ export async function handleMemoryRequest(
     const body = await readJson(request);
     const content = typeof body.content === "string" ? body.content.trim() : "";
     if (!content) {
-      sendJson(response, 400, { error: "Memory content cannot be empty." });
+      sendError(response, 400, "MEMORY_CONTENT_REQUIRED", "Memory content cannot be empty.");
       return true;
     }
     const memory = await createMemory({
@@ -53,7 +53,7 @@ export async function handleMemoryRequest(
           : undefined,
     });
     if (!memory) {
-      sendJson(response, 404, { error: "Memory not found." });
+      sendError(response, 404, "MEMORY_NOT_FOUND", "Memory not found.");
       return true;
     }
     sendJson(response, 200, { memory });
@@ -63,7 +63,7 @@ export async function handleMemoryRequest(
   if (memoryMatch && request.method === "DELETE") {
     const deleted = await deleteMemory(Number(memoryMatch[1]), user.id);
     if (!deleted) {
-      sendJson(response, 404, { error: "Memory not found." });
+      sendError(response, 404, "MEMORY_NOT_FOUND", "Memory not found.");
       return true;
     }
     sendJson(response, 200, { deleted: true });

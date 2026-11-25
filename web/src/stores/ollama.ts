@@ -3,6 +3,8 @@ import { ref, watch } from "vue";
 import { defineStore } from "pinia";
 
 import { createApiClient } from "@/services/api";
+import i18n from "@/i18n";
+import { localizeServerError } from "@/services/serverErrors";
 import type {
   Chat,
   ChatMessage,
@@ -10,7 +12,7 @@ import type {
   SavedMessage,
   User,
   ServerMessage,
-} from "../types/chat";
+} from "@/types/chat";
 import { mapSavedMessages } from "./ollama/messages";
 import { createSocketClient, maxSocketPayloadChars } from "./ollama/socket";
 import {
@@ -89,7 +91,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     chunks.flush();
     isGenerating.value = false;
     generatingChatId = null;
-    addAssistantMessage("Error: Connection lost. Reconnecting…");
+    addAssistantMessage(i18n.global.t("chat.connectionLostReconnecting"));
   }
 
   // Restore the active session during app startup and load the user's chats.
@@ -134,7 +136,8 @@ export const useOllamaStore = defineStore("ollama", () => {
       socket.connect();
       await Promise.all([loadComfyModels(), loadChats()]);
     } catch (error) {
-      authError.value = error instanceof Error ? error.message : "Authentication failed.";
+      authError.value =
+        error instanceof Error ? error.message : i18n.global.t("auth.authenticationFailed");
       throw error;
     } finally {
       authLoading.value = false;
@@ -213,11 +216,11 @@ export const useOllamaStore = defineStore("ollama", () => {
   async function createNewChat() {
     const response = await api.request<{ chatId: number }>("/api/chats", {
       method: "POST",
-      body: JSON.stringify({ title: "New conversation" }),
+      body: JSON.stringify({ title: i18n.global.t("chat.newConversation") }),
     });
     const chat: Chat = {
       id: response.chatId,
-      title: "New conversation",
+      title: i18n.global.t("chat.newConversation"),
       createdAt: new Date().toISOString(),
     };
     selectRequestId += 1; // cancel any chat switch still in flight
@@ -342,7 +345,11 @@ export const useOllamaStore = defineStore("ollama", () => {
     } else if (message.type === "error") {
       isGenerating.value = false;
       generatingChatId = null;
-      addAssistantMessage(`Error: ${message.error}`);
+      addAssistantMessage(
+        i18n.global.t("chat.errorPrefix", {
+          message: localizeServerError(message),
+        }),
+      );
     } else if (message.type === "done") {
       isGenerating.value = false;
       generatingChatId = null;
@@ -373,7 +380,7 @@ export const useOllamaStore = defineStore("ollama", () => {
         role: "assistant",
         content,
         thinking: thinkingContent,
-        time: "now",
+        time: i18n.global.t("chat.now"),
         model: selectedModel.value,
         attachments,
       });
@@ -393,7 +400,11 @@ export const useOllamaStore = defineStore("ollama", () => {
 
   // Show a local error in the conversation without touching the generating state.
   function showError(error: unknown, fallback: string) {
-    addAssistantMessage(`Error: ${error instanceof Error ? error.message : fallback}`);
+    addAssistantMessage(
+      i18n.global.t("chat.errorPrefix", {
+        message: error instanceof Error ? error.message : fallback,
+      }),
+    );
   }
 
   // Send the current draft to the active chat over the authenticated socket.
@@ -412,7 +423,7 @@ export const useOllamaStore = defineStore("ollama", () => {
     } catch (error) {
       // Do not send a message that refers to files the server did not receive.
       isGenerating.value = false;
-      showError(error, "Upload failed.");
+      showError(error, i18n.global.t("chat.uploadFailed"));
       return false;
     }
 
@@ -431,17 +442,14 @@ export const useOllamaStore = defineStore("ollama", () => {
 
     if (payload.length > maxSocketPayloadChars) {
       isGenerating.value = false;
-      showError(
-        null,
-        "Those attachments are too large to send together. Try fewer or smaller images.",
-      );
+      showError(null, i18n.global.t("chat.attachmentsTooLarge"));
       return false;
     }
 
     // The socket may have dropped while the upload was running.
     if (!socket.isOpen()) {
       isGenerating.value = false;
-      showError(null, "Connection lost. Please try again in a moment.");
+      showError(null, i18n.global.t("chat.connectionLostRetry"));
       return false;
     }
 
@@ -449,7 +457,7 @@ export const useOllamaStore = defineStore("ollama", () => {
       id: Date.now(),
       role: "user",
       content,
-      time: "now",
+      time: i18n.global.t("chat.now"),
       attachments: buildLocalAttachments(files, uploaded, objectUrls),
     });
     draft.value = "";

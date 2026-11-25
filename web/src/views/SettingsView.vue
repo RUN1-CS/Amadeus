@@ -1,14 +1,17 @@
 <!-- Settings page for profile data, theme colors, and account updates. -->
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { useRouter } from "vue-router";
 
 import BackToChatButton from "@/components/common/BackToChatButton.vue";
+import LanguageSelector from "@/components/common/LanguageSelector.vue";
 import { useOllamaStore } from "../stores/ollama";
 import { applyTheme, defaultTheme, loadTheme, saveTheme, type Theme } from "@/services/theme";
 
 const router = useRouter();
+const { t } = useI18n();
 const store = useOllamaStore();
 const { user, sidebarVisible } = storeToRefs(store);
 const username = ref(user.value?.username ?? "");
@@ -53,17 +56,13 @@ async function saveAccount() {
     saved.value = true;
     window.location.reload();
   } catch (error) {
-    saveError.value = error instanceof Error ? error.message : "Could not update account.";
+    saveError.value = error instanceof Error ? error.message : t("settings.updateFailed");
   }
 }
 
 async function deleteAccount() {
   deleteError.value = "";
-  if (
-    !window.confirm(
-      "Delete your account and permanently erase its encryption key? Backups will retain only unreadable ciphertext.",
-    )
-  ) {
+  if (!window.confirm(t("settings.deleteAccountConfirmation"))) {
     return;
   }
 
@@ -72,7 +71,7 @@ async function deleteAccount() {
     await store.deleteCurrentAccount(deletePassword.value);
     await router.replace("/auth");
   } catch (error) {
-    deleteError.value = error instanceof Error ? error.message : "Could not delete the account.";
+    deleteError.value = error instanceof Error ? error.message : t("settings.deleteFailed");
   } finally {
     deleting.value = false;
   }
@@ -89,18 +88,20 @@ async function deleteAccount() {
         class="rounded-2xl border border-[#ddd8ce] bg-[var(--theme-surface)] p-7 shadow-sm sm:p-9"
       >
         <p class="font-mono text-[10px] uppercase tracking-widest text-[var(--theme-muted)]">
-          Settings
+          {{ $t("settings.settings") }}
         </p>
-        <h1 class="mt-2 text-2xl font-bold">Account settings</h1>
-        <p class="mt-2 text-sm text-[var(--theme-muted)]">Signed in as {{ user?.username }}</p>
+        <h1 class="mt-2 text-2xl font-bold">{{ $t("settings.accountSettings") }}</h1>
+        <p class="mt-2 text-sm text-[var(--theme-muted)]">
+          {{ $t("settings.signedInAs", { username: user?.username }) }}
+        </p>
 
         <div class="mt-8 divide-y divide-[#eeeae3] items-center">
           <section class="py-6">
             <div class="flex items-start justify-between gap-4">
               <div>
-                <h2 class="text-sm font-bold">Theme</h2>
+                <h2 class="text-sm font-bold">{{ $t("settings.theme") }}</h2>
                 <p class="mt-1 text-sm text-[var(--theme-muted)]">
-                  Choose the exact colors used by this browser.
+                  {{ $t("settings.chooseColors") }}
                 </p>
               </div>
               <button
@@ -108,62 +109,63 @@ async function deleteAccount() {
                 class="text-xs text-[var(--theme-accent)] hover:underline"
                 @click="resetTheme"
               >
-                Reset
+                {{ $t("settings.reset") }}
               </button>
             </div>
             <div class="mt-4 grid gap-3 sm:grid-cols-2">
               <label
                 class="flex items-center justify-between gap-3 rounded-lg border border-[#ddd8ce] p-3 text-sm"
               >
-                <span>Accent</span>
+                <span>{{ $t("settings.accent") }}</span>
                 <input
                   :value="theme.accent"
                   type="color"
-                  aria-label="Accent color"
+                  :aria-label="$t('settings.accentColor')"
                   @input="updateTheme('accent', ($event.target as HTMLInputElement).value)"
                 />
               </label>
               <label
                 class="flex items-center justify-between gap-3 rounded-lg border border-[#ddd8ce] p-3 text-sm"
               >
-                <span>Background</span>
+                <span>{{ $t("settings.background") }}</span>
                 <input
                   :value="theme.background"
                   type="color"
-                  aria-label="Background color"
+                  :aria-label="$t('settings.backgroundColor')"
                   @input="updateTheme('background', ($event.target as HTMLInputElement).value)"
                 />
               </label>
               <label
                 class="flex items-center justify-between gap-3 rounded-lg border border-[#ddd8ce] p-3 text-sm"
               >
-                <span>Surface</span>
+                <span>{{ $t("settings.surface") }}</span>
                 <input
                   :value="theme.surface"
                   type="color"
-                  aria-label="Surface color"
+                  :aria-label="$t('settings.surfaceColor')"
                   @input="updateTheme('surface', ($event.target as HTMLInputElement).value)"
                 />
               </label>
               <label
                 class="flex items-center justify-between gap-3 rounded-lg border border-[#ddd8ce] p-3 text-sm"
               >
-                <span>Text</span>
+                <span>{{ $t("settings.text") }}</span>
                 <input
                   :value="theme.text"
                   type="color"
-                  aria-label="Text color"
+                  :aria-label="$t('settings.textColor')"
                   @input="updateTheme('text', ($event.target as HTMLInputElement).value)"
                 />
               </label>
             </div>
           </section>
+          <LanguageSelector />
           <label class="flex items-center justify-between gap-5 py-5 text-sm">
             <span>
-              <strong class="block">Show chat sidebar</strong>
-              <small class="mt-1 block text-[var(--theme-muted)]"
-                >Keep your saved conversations visible beside the chat.</small
-              >
+              <strong class="block">{{ $t("settings.showSidebar") }}</strong>
+              <small class="mt-1 block text-[var(--theme-muted)]">{{
+                $t("settings.sidebarDescription")
+              }}</small>
             </span>
             <input
               :checked="sidebarVisible"
@@ -173,9 +175,9 @@ async function deleteAccount() {
             />
           </label>
           <form class="space-y-4 py-6" @submit.prevent="saveAccount">
-            <h2 class="text-sm font-bold">Profile</h2>
+            <h2 class="text-sm font-bold">{{ $t("settings.profile") }}</h2>
             <label class="block text-sm font-semibold">
-              Username
+              {{ $t("auth.username") }}
               <input
                 v-model="username"
                 type="text"
@@ -185,25 +187,25 @@ async function deleteAccount() {
               />
             </label>
             <label class="block text-sm font-semibold">
-              About Me
+              {{ $t("settings.aboutMe") }}
               <textarea
                 v-model="aboutMe"
                 rows="4"
-                placeholder="Share details that help your assistant understand you."
+                :placeholder="$t('settings.aboutMePlaceholder')"
                 class="mt-2 w-full resize-y rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
               ></textarea>
             </label>
             <label class="block text-sm font-semibold">
-              Custom Behavior
+              {{ $t("settings.customBehavior") }}
               <textarea
                 v-model="customBehavior"
                 rows="4"
-                placeholder="Describe how you want the assistant to respond."
+                :placeholder="$t('settings.customBehaviorPlaceholder')"
                 class="mt-2 w-full resize-y rounded-lg border border-[#d8d2c7] bg-[var(--theme-background)] px-3 py-2.5 outline-none focus:border-[var(--theme-accent)]"
               ></textarea>
             </label>
             <label class="block text-sm font-semibold">
-              Current password
+              {{ $t("settings.currentPassword") }}
               <input
                 v-model="currentPassword"
                 type="password"
@@ -213,7 +215,10 @@ async function deleteAccount() {
               />
             </label>
             <label class="block text-sm font-semibold">
-              New password <span class="font-normal text-[var(--theme-muted)]">(optional)</span>
+              {{ $t("settings.newPassword") }}
+              <span class="font-normal text-[var(--theme-muted)]">{{
+                $t("settings.optional")
+              }}</span>
               <input
                 v-model="newPassword"
                 type="password"
@@ -226,33 +231,32 @@ async function deleteAccount() {
               {{ saveError }}
             </p>
             <p v-if="saved" class="rounded-lg bg-[#e4f0df] px-3 py-2 text-sm text-[#47723e]">
-              Account updated.
+              {{ $t("settings.accountUpdated") }}
             </p>
             <div class="flex flex-col items-center gap-3">
               <button
                 type="submit"
                 class="rounded-lg bg-[var(--theme-accent)] px-4 py-2.5 text-sm font-bold text-white hover:opacity-80"
               >
-                Save account
+                {{ $t("settings.saveAccount") }}
               </button>
               <button
                 type="button"
                 class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
                 @click="router.push('/memory')"
               >
-                Memory settings
+                {{ $t("settings.memorySettings") }}
               </button>
             </div>
           </form>
 
           <section class="border-t border-[#eeeae3] py-6">
-            <h2 class="text-sm font-bold text-[#853c2a]">Delete account</h2>
+            <h2 class="text-sm font-bold text-[#853c2a]">{{ $t("settings.deleteAccount") }}</h2>
             <p class="mt-1 text-sm text-[var(--theme-muted)]">
-              This permanently removes your account and destroys its encryption key. Copies in
-              database backups become unreadable.
+              {{ $t("settings.deleteAccountDescription") }}
             </p>
             <label class="mt-4 block text-sm font-semibold">
-              Current password
+              {{ $t("settings.currentPassword") }}
               <input
                 v-model="deletePassword"
                 type="password"
@@ -271,7 +275,7 @@ async function deleteAccount() {
                 :disabled="deleting || !deletePassword"
                 @click="deleteAccount"
               >
-                {{ deleting ? "Deleting…" : "Permanently delete account" }}
+                {{ deleting ? $t("settings.deleting") : $t("settings.permanentlyDeleteAccount") }}
               </button>
             </div>
           </section>

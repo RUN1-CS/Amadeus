@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { createApiClient } from "@/services/api";
 import { useOllamaStore } from "@/stores/ollama";
@@ -12,6 +13,7 @@ type UserPage = {
 };
 
 const store = useOllamaStore();
+const { t } = useI18n();
 const { token } = storeToRefs(store);
 const api = createApiClient(() => token.value);
 const users = ref<UserPage["users"]>([]);
@@ -33,7 +35,8 @@ async function loadMore() {
     cursor.value = page.nextCursor;
     hasMore.value = page.nextCursor !== null;
   } catch (requestError) {
-    error.value = requestError instanceof Error ? requestError.message : "Could not load users.";
+    error.value =
+      requestError instanceof Error ? requestError.message : t("admin.users.couldNotLoad");
   } finally {
     loading.value = false;
   }
@@ -59,9 +62,9 @@ onMounted(() => void loadMore());
   >
     <div class="flex flex-wrap items-end justify-between gap-2">
       <div>
-        <h2 class="text-lg font-bold">All users</h2>
+        <h2 class="text-lg font-bold">{{ $t("admin.users.all") }}</h2>
         <p class="mt-1 text-sm text-[var(--theme-muted)]">
-          {{ users.length }} of {{ totalUsers }} accounts loaded · scroll to load more
+          {{ $t("admin.users.loaded", { loaded: users.length, total: totalUsers }) }}
         </p>
       </div>
     </div>
@@ -76,10 +79,10 @@ onMounted(() => void loadMore());
           class="sticky top-0 z-[1] bg-[var(--theme-sidebar)] text-xs text-[var(--theme-muted)]"
         >
           <tr>
-            <th scope="col" class="px-4 py-3 font-semibold">User</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Account ID</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Joined</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Role</th>
+            <th scope="col" class="px-4 py-3 font-semibold">{{ $t("admin.users.user") }}</th>
+            <th scope="col" class="px-4 py-3 font-semibold">{{ $t("admin.users.accountId") }}</th>
+            <th scope="col" class="px-4 py-3 font-semibold">{{ $t("admin.users.joined") }}</th>
+            <th scope="col" class="px-4 py-3 font-semibold">{{ $t("admin.users.role") }}</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-[var(--theme-border)]">
@@ -96,33 +99,37 @@ onMounted(() => void loadMore());
                 v-if="account.isAdmin"
                 class="rounded-full bg-[var(--theme-accent)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--theme-accent)]"
               >
-                Admin
+                {{ $t("admin.users.admin") }}
               </span>
-              <span v-else class="text-xs text-[var(--theme-muted)]">User</span>
+              <span v-else class="text-xs text-[var(--theme-muted)]">{{
+                $t("admin.users.user")
+              }}</span>
             </td>
           </tr>
           <tr v-if="users.length === 0 && !loading && !error">
             <td colspan="4" class="px-4 py-8 text-center text-sm text-[var(--theme-muted)]">
-              No user accounts found.
+              {{ $t("admin.users.none") }}
             </td>
           </tr>
         </tbody>
       </table>
       <div v-if="loading" class="px-4 py-3 text-center text-xs text-[var(--theme-muted)]">
-        Loading users…
+        {{ $t("admin.users.loading") }}
       </div>
       <div
         v-if="error"
         class="flex items-center justify-between gap-3 px-4 py-3 text-sm text-[#853c2a]"
       >
         <span>{{ error }}</span>
-        <button class="shrink-0 font-semibold underline" @click="loadMore">Retry</button>
+        <button class="shrink-0 font-semibold underline" @click="loadMore">
+          {{ $t("common.retry") }}
+        </button>
       </div>
       <p
         v-if="!hasMore && users.length"
         class="px-4 py-3 text-center text-xs text-[var(--theme-muted)]"
       >
-        All users loaded.
+        {{ $t("admin.users.allLoaded") }}
       </p>
     </div>
   </section>

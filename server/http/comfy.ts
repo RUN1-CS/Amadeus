@@ -5,7 +5,7 @@ import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import { getAiModelAccess, isAdmin } from "../db.js";
 import { getComfyImage, getComfyModels, loadComfyModels } from "../comfyui.js";
 import type { PublicUser } from "../types.js";
-import { isSafeSubfolder, sendJson } from "./shared.js";
+import { isSafeSubfolder, sendError, sendJson } from "./shared.js";
 
 export async function handleComfyRequest(
   request: IncomingMessage,
@@ -22,6 +22,10 @@ export async function handleComfyRequest(
       models: (await isAdmin(user.id))
         ? result.models
         : models.filter((model) => model.enabled).map((model) => model.name),
+      errorLocalizationCode: result.error ? "AI_SERVICE_ERROR" : undefined,
+      errorLocalizationParams: result.error
+        ? { details: result.error }
+        : undefined,
     });
     return true;
   }
@@ -37,14 +41,22 @@ export async function handleComfyRequest(
       !isSafeSubfolder(subfolder) ||
       !["output", "input", "temp"].includes(type)
     ) {
-      sendJson(response, 400, { error: "Invalid ComfyUI image reference." });
+      sendError(
+        response,
+        400,
+        "INVALID_COMFY_IMAGE_REFERENCE",
+        "Invalid ComfyUI image reference.",
+      );
       return true;
     }
     const upstream = await getComfyImage({ filename, subfolder, type });
     if (!upstream.ok || !upstream.body) {
-      sendJson(response, upstream.status === 404 ? 404 : 502, {
-        error: "Image not available.",
-      });
+      sendError(
+        response,
+        upstream.status === 404 ? 404 : 502,
+        "COMFY_IMAGE_UNAVAILABLE",
+        "Image not available.",
+      );
       return true;
     }
     const allowedOrigin = process.env.CORS_ORIGIN ?? "*";

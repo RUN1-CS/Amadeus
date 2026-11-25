@@ -15,7 +15,10 @@ const password = ref("");
 const confirmPassword = ref("");
 const isRegister = computed(() => route.path === "/register");
 const passwordMismatch = computed(
-  () => isRegister.value && confirmPassword.value.length > 0 && password.value !== confirmPassword.value,
+  () =>
+    isRegister.value &&
+    confirmPassword.value.length > 0 &&
+    password.value !== confirmPassword.value,
 );
 
 // Sign the user in or create an account and then send them to the main chat.
@@ -46,25 +49,23 @@ async function submit() {
           O
         </div>
         <div>
-          <p class="font-extrabold">Ollama desk</p>
+          <p class="font-extrabold">{{ $t("auth.brand") }}</p>
           <p class="font-mono text-[10px] uppercase tracking-widest text-[#9a948b]">
-            Private workspace
+            {{ $t("app.privateWorkspace") }}
           </p>
         </div>
       </div>
 
-      <h1 class="text-2xl font-bold">{{ isRegister ? "Create your account" : "Welcome back" }}</h1>
+      <h1 class="text-2xl font-bold">
+        {{ isRegister ? $t("auth.createAccount") : $t("auth.welcomeBack") }}
+      </h1>
       <p class="mt-2 text-sm leading-6 text-[#81796f]">
-        {{
-          isRegister
-            ? "Save your conversations and pick them up anywhere."
-            : "Sign in to load your saved conversations."
-        }}
+        {{ isRegister ? $t("auth.registerDescription") : $t("auth.loginDescription") }}
       </p>
 
       <form class="mt-7 space-y-4" @submit.prevent="submit">
         <label class="block text-sm font-semibold">
-          Username
+          {{ $t("auth.username") }}
           <input
             v-model="username"
             type="text"
@@ -74,7 +75,7 @@ async function submit() {
           />
         </label>
         <label class="block text-sm font-semibold">
-          Password
+          {{ $t("auth.password") }}
           <input
             v-model="password"
             type="password"
@@ -85,7 +86,7 @@ async function submit() {
           />
         </label>
         <label v-if="isRegister" class="block text-sm font-semibold">
-          Confirm password
+          {{ $t("auth.confirmPassword") }}
           <input
             v-model="confirmPassword"
             type="password"
@@ -97,7 +98,7 @@ async function submit() {
           />
         </label>
         <p v-if="passwordMismatch" class="text-sm text-[#9e422c]" role="alert">
-          Passwords do not match.
+          {{ $t("auth.passwordsMismatch") }}
         </p>
         <p v-if="authError" class="rounded-lg bg-[#f9e4dc] px-3 py-2 text-sm text-[#9e422c]">
           {{ authError }}
@@ -107,7 +108,9 @@ async function submit() {
           :disabled="authLoading"
           class="w-full rounded-lg bg-[var(--theme-accent)] px-4 py-3 text-sm font-bold text-white transition hover:opacity-80 disabled:cursor-wait disabled:opacity-50"
         >
-          {{ authLoading ? "Working..." : isRegister ? "Register" : "Sign in" }}
+          {{
+            authLoading ? $t("auth.working") : isRegister ? $t("auth.register") : $t("auth.signIn")
+          }}
         </button>
       </form>
 
@@ -115,7 +118,7 @@ async function submit() {
         class="mt-6 w-full text-sm text-[var(--theme-accent)] hover:underline"
         @click="router.push(isRegister ? '/login' : '/register')"
       >
-        {{ isRegister ? "Already have an account? Sign in" : "Need an account? Register" }}
+        {{ isRegister ? $t("auth.alreadyHaveAccount") : $t("auth.needAccount") }}
       </button>
     </section>
   </main>

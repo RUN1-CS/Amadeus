@@ -55,6 +55,8 @@ export type AssistantMessage = {
 export type ErrorMessage = {
   type: "error";
   error: string;
+  localizationCode?: string;
+  localizationParams?: Record<string, string | number>;
 };
 
 export type ChatTitleMessage = {
@@ -90,4 +92,9 @@ export interface MemoryPayload {
   content: string;
   source: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface Language {
+  code: string;
+  name: string;
 }

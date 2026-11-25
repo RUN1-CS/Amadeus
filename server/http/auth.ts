@@ -13,7 +13,7 @@ import {
   registerWindowMs,
 } from "../config.js";
 import { invalidateUserCache } from "../sessions.js";
-import { readJson, requireUser, sendJson } from "./shared.js";
+import { readJson, requireUser, sendError, sendJson } from "./shared.js";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -62,9 +62,12 @@ export async function handleAuthRequest(
   if (request.method === "POST" && path === "/api/auth/register") {
     const key = clientKey(request, "register");
     if (isBlocked(key, registerMaxAttempts)) {
-      sendJson(response, 429, {
-        error: "Too many sign-up attempts. Try again later.",
-      });
+      sendError(
+        response,
+        429,
+        "SIGNUP_RATE_LIMIT",
+        "Too many sign-up attempts. Try again later.",
+      );
       return true;
     }
     recordAttempt(key, registerWindowMs);
@@ -76,10 +79,12 @@ export async function handleAuthRequest(
       Array.from(username.trim()).length > 50 ||
       password.length < 8
     ) {
-      sendJson(response, 400, {
-        error:
-          "Use a username of at most 50 characters and a password of at least 8 characters.",
-      });
+      sendError(
+        response,
+        400,
+        "INVALID_REGISTRATION",
+        "Use a username of at most 50 characters and a password of at least 8 characters.",
+      );
       return true;
     }
     const user = await register(username, password);
@@ -90,9 +95,12 @@ export async function handleAuthRequest(
   if (request.method === "POST" && path === "/api/auth/login") {
     const key = clientKey(request, "login");
     if (isBlocked(key, loginMaxFailures)) {
-      sendJson(response, 429, {
-        error: "Too many failed logins. Try again later.",
-      });
+      sendError(
+        response,
+        429,
+        "LOGIN_RATE_LIMIT",
+        "Too many failed logins. Try again later.",
+      );
       return true;
     }
     const body = await readJson(request);
@@ -102,7 +110,7 @@ export async function handleAuthRequest(
     );
     if (!user) {
       recordAttempt(key, loginWindowMs);
-      sendJson(response, 401, { error: "Invalid username or password." });
+      sendError(response, 401, "INVALID_CREDENTIALS", "Invalid username or password.");
       return true;
     }
     attempts.delete(key);
@@ -135,10 +143,12 @@ export async function handleAuthRequest(
       !currentPassword ||
       (newPassword && newPassword.length < 8)
     ) {
-      sendJson(response, 400, {
-        error:
-          "Enter a username of 1 to 50 characters, your current password, and a valid new password.",
-      });
+      sendError(
+        response,
+        400,
+        "INVALID_ACCOUNT_UPDATE",
+        "Enter a username of 1 to 50 characters, your current password, and a valid new password.",
+      );
       return true;
     }
     const updatedUser = await updateAccount(
@@ -150,7 +160,7 @@ export async function handleAuthRequest(
       customBehavior,
     );
     if (!updatedUser) {
-      sendJson(response, 401, { error: "Current password is incorrect." });
+      sendError(response, 401, "INVALID_CURRENT_PASSWORD", "Current password is incorrect.");
       return true;
     }
     invalidateUserCache(user.id);
@@ -165,12 +175,12 @@ export async function handleAuthRequest(
     const currentPassword =
       typeof body.currentPassword === "string" ? body.currentPassword : "";
     if (!currentPassword) {
-      sendJson(response, 400, { error: "Enter your current password." });
+      sendError(response, 400, "CURRENT_PASSWORD_REQUIRED", "Enter your current password.");
       return true;
     }
     const deleted = await deleteAccount(user.id, currentPassword);
     if (!deleted) {
-      sendJson(response, 401, { error: "Current password is incorrect." });
+      sendError(response, 401, "INVALID_CURRENT_PASSWORD", "Current password is incorrect.");
       return true;
     }
     invalidateUserCache(user.id);

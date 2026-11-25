@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import BackToChatButton from "@/components/common/BackToChatButton.vue";
 import AdminLogsPanel from "@/components/admin/AdminLogsPanel.vue";
@@ -7,6 +8,7 @@ import AdminBackupsPanel from "@/components/admin/AdminBackupsPanel.vue";
 import AdminModelAccessPanel from "@/components/admin/AdminModelAccessPanel.vue";
 import AdminUsersPanel from "@/components/admin/AdminUsersPanel.vue";
 import { createApiClient } from "@/services/api";
+import { localizeServerError } from "@/services/serverErrors";
 import { useOllamaStore } from "@/stores/ollama";
 
 type AdminOverview = {
@@ -19,12 +21,25 @@ type AdminOverview = {
   };
   recentUsers: { username: string; createdAt: string }[];
   services: {
-    ollama: { status: string; models: string[]; error?: string };
-    comfyui: { status: string; models: string[]; error?: string };
+    ollama: {
+      status: string;
+      models: string[];
+      error?: string;
+      errorLocalizationCode?: string;
+      errorLocalizationParams?: Record<string, string | number>;
+    };
+    comfyui: {
+      status: string;
+      models: string[];
+      error?: string;
+      errorLocalizationCode?: string;
+      errorLocalizationParams?: Record<string, string | number>;
+    };
   };
 };
 
 const store = useOllamaStore();
+const { t } = useI18n();
 const { user, token } = storeToRefs(store);
 const api = createApiClient(() => token.value);
 const overview = ref<AdminOverview | null>(null);
@@ -33,11 +48,11 @@ const error = ref("");
 const refreshedAt = ref<Date | null>(null);
 
 const metrics = [
-  { key: "users", label: "Registered users" },
-  { key: "admins", label: "Administrators" },
-  { key: "chats", label: "Conversations" },
-  { key: "messages", label: "Messages" },
-  { key: "memories", label: "Saved memories" },
+  { key: "users", label: "admin.registeredUsers" },
+  { key: "admins", label: "admin.administrators" },
+  { key: "chats", label: "admin.conversations" },
+  { key: "messages", label: "admin.messages" },
+  { key: "memories", label: "admin.savedMemories" },
 ] as const;
 
 async function loadOverview() {
@@ -48,7 +63,7 @@ async function loadOverview() {
     refreshedAt.value = new Date();
   } catch (requestError) {
     error.value =
-      requestError instanceof Error ? requestError.message : "Could not load the admin dashboard.";
+      requestError instanceof Error ? requestError.message : t("admin.couldNotLoadDashboard");
   } finally {
     loading.value = false;
   }
@@ -56,6 +71,15 @@ async function loadOverview() {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
+}
+
+function serviceStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    available: t("admin.statusAvailable"),
+    degraded: t("admin.statusDegraded"),
+    unavailable: t("admin.statusUnavailable"),
+  };
+  return labels[status] ?? status;
 }
 
 onMounted(() => void loadOverview());
@@ -71,12 +95,12 @@ onMounted(() => void loadOverview());
       <header class="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p class="font-mono text-[10px] uppercase tracking-widest text-[var(--theme-muted)]">
-            Amadeus administration
+            {{ $t("admin.administration") }}
           </p>
-          <h1 class="mt-2 text-3xl font-bold tracking-tight">Admin dashboard</h1>
+          <h1 class="mt-2 text-3xl font-bold tracking-tight">{{ $t("admin.dashboard") }}</h1>
           <p class="mt-2 text-sm text-[var(--theme-muted)]">
-            Service health and high-level application activity
-            <span v-if="user">· signed in as {{ user.username }}</span>
+            {{ $t("admin.description") }}
+            <span v-if="user">· {{ $t("settings.signedInAs", { username: user.username }) }}</span>
           </p>
         </div>
         <button
@@ -84,12 +108,12 @@ onMounted(() => void loadOverview());
           :disabled="loading"
           @click="loadOverview"
         >
-          {{ loading ? "Refreshing…" : "Refresh data" }}
+          {{ loading ? $t("admin.refreshing") : $t("admin.refreshData") }}
         </button>
       </header>
 
       <p v-if="refreshedAt" class="mt-3 text-xs text-[var(--theme-subtle)]">
-        Snapshot refreshed {{ refreshedAt.toLocaleTimeString() }}
+        {{ $t("admin.snapshotRefreshed", { time: refreshedAt.toLocaleTimeString() }) }}
       </p>
 
       <div
@@ -99,13 +123,13 @@ onMounted(() => void loadOverview());
       >
         {{ error }}
         <p v-if="error.includes('Administrator access')" class="mt-1">
-          Admin access must be granted to your account by a database administrator.
+          {{ $t("admin.adminGrantDescription") }}
         </p>
       </div>
 
       <template v-if="overview">
         <section
-          aria-label="Application metrics"
+          :aria-label="$t('admin.applicationMetrics')"
           class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
         >
           <article
@@ -113,7 +137,7 @@ onMounted(() => void loadOverview());
             :key="metric.key"
             class="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-5"
           >
-            <p class="text-sm text-[var(--theme-muted)]">{{ metric.label }}</p>
+            <p class="text-sm text-[var(--theme-muted)]">{{ $t(metric.label) }}</p>
             <p class="mt-3 text-3xl font-bold tabular-nums">{{ overview.stats[metric.key] }}</p>
           </article>
         </section>
@@ -129,9 +153,9 @@ onMounted(() => void loadOverview());
           >
             <div class="flex items-center justify-between gap-3">
               <div>
-                <h2 class="text-lg font-bold">AI services</h2>
+                <h2 class="text-lg font-bold">{{ $t("admin.aiServices") }}</h2>
                 <p class="mt-1 text-sm text-[var(--theme-muted)]">
-                  Status from the server’s latest model discovery.
+                  {{ $t("admin.serviceDiscovery") }}
                 </p>
               </div>
             </div>
@@ -154,13 +178,21 @@ onMounted(() => void loadOverview());
                           : 'bg-[#f9e4dc] text-[#853c2a]'
                     "
                   >
-                    {{ service.status }}
+                    {{ serviceStatusLabel(service.status) }}
                   </span>
                 </div>
                 <p class="mt-2 text-sm text-[var(--theme-muted)]">
-                  {{ service.models.length ? service.models.join(", ") : "No models discovered" }}
+                  {{ service.models.length ? service.models.join(", ") : $t("admin.noModels") }}
                 </p>
-                <p v-if="service.error" class="mt-2 text-xs text-[#853c2a]">{{ service.error }}</p>
+                <p v-if="service.error" class="mt-2 text-xs text-[#853c2a]">
+                  {{
+                    localizeServerError({
+                      error: service.error,
+                      localizationCode: service.errorLocalizationCode,
+                      localizationParams: service.errorLocalizationParams,
+                    })
+                  }}
+                </p>
               </article>
             </div>
           </section>
@@ -168,8 +200,8 @@ onMounted(() => void loadOverview());
           <section
             class="rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-6"
           >
-            <h2 class="text-lg font-bold">Recently registered</h2>
-            <p class="mt-1 text-sm text-[var(--theme-muted)]">Latest eight accounts</p>
+            <h2 class="text-lg font-bold">{{ $t("admin.recentlyRegistered") }}</h2>
+            <p class="mt-1 text-sm text-[var(--theme-muted)]">{{ $t("admin.latestAccounts") }}</p>
             <ul
               v-if="overview.recentUsers.length"
               class="mt-4 divide-y divide-[var(--theme-border)]"
@@ -185,30 +217,32 @@ onMounted(() => void loadOverview());
                 </time>
               </li>
             </ul>
-            <p v-else class="mt-4 text-sm text-[var(--theme-muted)]">No accounts found.</p>
+            <p v-else class="mt-4 text-sm text-[var(--theme-muted)]">
+              {{ $t("admin.noAccounts") }}
+            </p>
           </section>
         </div>
 
         <section
           class="mt-6 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-6"
         >
-          <h2 class="text-lg font-bold">Quick links</h2>
+          <h2 class="text-lg font-bold">{{ $t("admin.quickLinks") }}</h2>
           <div class="mt-4 flex flex-wrap gap-3">
             <RouterLink
               to="/settings"
               class="rounded-lg border border-[var(--theme-border)] px-4 py-2 text-sm font-semibold hover:border-[var(--theme-accent)]"
             >
-              Account settings
+              {{ $t("admin.accountSettings") }}
             </RouterLink>
             <RouterLink
               to="/memory"
               class="rounded-lg border border-[var(--theme-border)] px-4 py-2 text-sm font-semibold hover:border-[var(--theme-accent)]"
             >
-              Memory manager
+              {{ $t("admin.memoryManager") }}
             </RouterLink>
           </div>
           <p class="mt-3 text-xs text-[var(--theme-muted)]">
-            These tools operate on your signed-in account.
+            {{ $t("admin.toolsDescription") }}
           </p>
         </section>
       </template>

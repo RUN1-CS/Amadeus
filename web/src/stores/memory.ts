@@ -1,9 +1,18 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
+import i18n from "@/i18n";
+import { createServerError, type ServerErrorPayload } from "@/services/serverErrors";
 import type { Memory, MemoryPayload } from "@/types/chat";
 
 const token = localStorage.getItem("amadeus_token");
+
+async function throwResponseError(response: Response, fallback: string) {
+  if (!response.ok) {
+    const payload = (await response.json()) as ServerErrorPayload;
+    throw createServerError(payload, fallback);
+  }
+}
 
 export const useMemoryStore = defineStore("memory", () => {
   const memories = ref<Memory[]>([]);
@@ -15,7 +24,7 @@ export const useMemoryStore = defineStore("memory", () => {
     loading.value = true;
     error.value = null;
     if (!token) {
-      error.value = "User is not authenticated.";
+      error.value = i18n.global.t("memory.userNotAuthenticated");
       loading.value = false;
       return;
     }
@@ -26,11 +35,11 @@ export const useMemoryStore = defineStore("memory", () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error("Failed to fetch memories.");
+      await throwResponseError(response, i18n.global.t("memory.fetchFailed"));
       console.log("Fetched memories:", await response.clone());
       memories.value = await response.json();
     } catch (err) {
-      error.value = err instanceof Error ? err.message : "An error occurred.";
+      error.value = err instanceof Error ? err.message : i18n.global.t("memory.fetchFailed");
     } finally {
       loading.value = false;
     }
@@ -49,12 +58,12 @@ export const useMemoryStore = defineStore("memory", () => {
         },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Failed to create memory.");
+      await throwResponseError(response, i18n.global.t("memory.createFailed"));
       const newMemory: Memory = await response.json();
       memories.value.unshift(newMemory);
       return newMemory;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : "Failed to create memory.";
+      error.value = err instanceof Error ? err.message : i18n.global.t("memory.createFailed");
       throw err;
     } finally {
       loading.value = false;
@@ -74,13 +83,13 @@ export const useMemoryStore = defineStore("memory", () => {
         },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error("Failed to update memory.");
+      await throwResponseError(response, i18n.global.t("memory.updateFailed"));
       const updated: Memory = await response.json();
       const index = memories.value.findIndex((m) => m.id === id);
       if (index !== -1) memories.value[index] = updated;
       return updated;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : "Failed to update memory.";
+      error.value = err instanceof Error ? err.message : i18n.global.t("memory.updateFailed");
       throw err;
     } finally {
       loading.value = false;
@@ -98,10 +107,11 @@ export const useMemoryStore = defineStore("memory", () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      if (!response.ok) throw new Error("Failed to delete memory.");
+      await throwResponseError(response, i18n.global.t("memory.deleteRequestFailed"));
       memories.value = memories.value.filter((m) => m.id !== id);
     } catch (err) {
-      error.value = err instanceof Error ? err.message : "Failed to delete memory.";
+      error.value =
+        err instanceof Error ? err.message : i18n.global.t("memory.deleteRequestFailed");
       throw err;
     } finally {
       loading.value = false;

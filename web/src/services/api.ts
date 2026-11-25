@@ -1,4 +1,6 @@
 // Small fetch wrapper that adds JSON handling and bearer-token auth.
+import { createServerError, type ServerErrorPayload } from "@/services/serverErrors";
+
 const apiBase = `http://${window.location.hostname}:8080`;
 
 // Build a small API client that automatically attaches JWT auth and JSON parsing.
@@ -16,8 +18,8 @@ export function createApiClient(getToken: () => string | null) {
       if (token) headers.set("Authorization", `Bearer ${token}`);
 
       const response = await fetch(`${apiBase}${path}`, { ...options, headers });
-      const body = (await response.json()) as T & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Request failed.");
+      const body = (await response.json()) as T & ServerErrorPayload;
+      if (!response.ok) throw createServerError(body);
       return body;
     },
 
@@ -32,8 +34,8 @@ export function createApiClient(getToken: () => string | null) {
 
       const response = await fetch(`${apiBase}${path}`, { ...options, headers });
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
-        throw new Error(body.error ?? "Request failed.");
+        const body = (await response.json()) as ServerErrorPayload;
+        throw createServerError(body);
       }
       return response;
     },

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { useI18n } from "vue-i18n";
 import { storeToRefs } from "pinia";
 import { createApiClient } from "@/services/api";
 import { useOllamaStore } from "@/stores/ollama";
@@ -10,6 +11,7 @@ type BackupSettings = {
 };
 
 const store = useOllamaStore();
+const { t } = useI18n();
 const { token } = storeToRefs(store);
 const api = createApiClient(() => token.value);
 const settings = ref<BackupSettings | null>(null);
@@ -25,9 +27,7 @@ async function loadSettings() {
     settings.value = await api.request<BackupSettings>("/api/admin/backups");
   } catch (requestError) {
     error.value =
-      requestError instanceof Error
-        ? requestError.message
-        : "Could not load backup settings.";
+      requestError instanceof Error ? requestError.message : t("admin.backups.couldNotLoad");
   }
 }
 
@@ -41,19 +41,18 @@ async function downloadBackup() {
     });
     const blob = await response.blob();
     const filename =
-      response.headers
-        .get("Content-Disposition")
-        ?.match(/filename="([^"]+)"/)?.[1] ?? "amadeus-backup.dump";
+      response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ??
+      "amadeus-backup.dump";
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-    message.value = "Backup created and downloaded.";
+    message.value = t("admin.backups.created");
   } catch (requestError) {
     error.value =
-      requestError instanceof Error ? requestError.message : "Could not create a backup.";
+      requestError instanceof Error ? requestError.message : t("admin.backups.couldNotCreate");
   } finally {
     loading.value = false;
   }
@@ -68,11 +67,7 @@ function selectFile(event: Event) {
 async function restoreBackup() {
   const file = selectedFile.value;
   if (!file || loading.value) return;
-  if (
-    !window.confirm(
-      `Restore "${file.name}"? This replaces the current database contents.`,
-    )
-  ) {
+  if (!window.confirm(t("admin.backups.restoreConfirmation", { filename: file.name }))) {
     return;
   }
 
@@ -86,10 +81,10 @@ async function restoreBackup() {
     });
     selectedFile.value = null;
     if (fileInput.value) fileInput.value.value = "";
-    message.value = "Database restored successfully.";
+    message.value = t("admin.backups.restored");
   } catch (requestError) {
     error.value =
-      requestError instanceof Error ? requestError.message : "Could not restore the database.";
+      requestError instanceof Error ? requestError.message : t("admin.backups.couldNotRestore");
   } finally {
     loading.value = false;
   }
@@ -112,9 +107,9 @@ onMounted(() => void loadSettings());
     class="mt-6 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] p-6"
   >
     <div>
-      <h2 class="text-lg font-bold">Database backups</h2>
+      <h2 class="text-lg font-bold">{{ $t("admin.backups.title") }}</h2>
       <p class="mt-1 text-sm text-[var(--theme-muted)]">
-        Download a PostgreSQL backup or restore the database from a custom-format dump.
+        {{ $t("admin.backups.description") }}
       </p>
     </div>
 
@@ -134,29 +129,32 @@ onMounted(() => void loadSettings());
     </p>
 
     <p v-if="settings && !settings.enabled" class="mt-4 text-sm text-[var(--theme-muted)]">
-      Database backup operations are disabled by server configuration.
+      {{ $t("admin.backups.disabled") }}
     </p>
 
     <div v-else-if="settings" class="mt-5 grid gap-5 lg:grid-cols-2">
       <div class="rounded-lg border border-[var(--theme-border)] p-4">
-        <h3 class="font-semibold">Create a manual backup</h3>
+        <h3 class="font-semibold">{{ $t("admin.backups.createTitle") }}</h3>
         <p class="mt-1 text-sm text-[var(--theme-muted)]">
-          Creates a custom-format database dump, keeps it on the server, and downloads a copy.
+          {{ $t("admin.backups.createDescription") }}
         </p>
         <button
           class="mt-4 rounded-lg bg-[var(--theme-accent)] px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
           :disabled="loading"
           @click="downloadBackup"
         >
-          {{ loading ? "Working…" : "Create and download backup" }}
+          {{ loading ? $t("admin.backups.working") : $t("admin.backups.create") }}
         </button>
       </div>
 
       <div class="rounded-lg border border-[var(--theme-border)] p-4">
-        <h3 class="font-semibold">Restore from a backup</h3>
+        <h3 class="font-semibold">{{ $t("admin.backups.restoreTitle") }}</h3>
         <p class="mt-1 text-sm text-[var(--theme-muted)]">
-          Restoring replaces current database contents. Maximum upload:
-          {{ formatBytes(settings.maxUploadBytes) }}.
+          {{
+            $t("admin.backups.restoreDescription", {
+              maxUpload: formatBytes(settings.maxUploadBytes),
+            })
+          }}
         </p>
         <input
           ref="fileInput"
@@ -174,7 +172,7 @@ onMounted(() => void loadSettings());
           :disabled="loading || !selectedFile"
           @click="restoreBackup"
         >
-          {{ loading ? "Working…" : "Restore database" }}
+          {{ loading ? $t("admin.backups.working") : $t("admin.backups.restore") }}
         </button>
       </div>
     </div>

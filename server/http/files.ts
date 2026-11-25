@@ -47,7 +47,9 @@ async function toUploadedFile(
   if (looksBinary(bytes)) {
     throw new HttpError(
       415,
+      "UNSUPPORTED_BINARY_FILE",
       `${name} looks like a binary file and can't be read as text.`,
+      { filename: name },
     );
   }
   return {
@@ -69,7 +71,7 @@ export function readMultipartFiles(request: IncomingMessage) {
         limits: { fileSize: maxUploadBytes, files: maxUploadFiles },
       });
     } catch {
-      reject(new HttpError(400, "Invalid multipart upload."));
+      reject(new HttpError(400, "INVALID_MULTIPART_UPLOAD", "Invalid multipart upload."));
       return;
     }
 
@@ -92,7 +94,13 @@ export function readMultipartFiles(request: IncomingMessage) {
       const chunks: Buffer[] = [];
       stream.on("data", (chunk: Buffer) => chunks.push(chunk));
       stream.on("limit", () =>
-        fail(new HttpError(413, "Uploads must be smaller than 10 MB.")),
+        fail(
+          new HttpError(
+            413,
+            "UPLOAD_TOO_LARGE",
+            "Uploads must be smaller than 10 MB.",
+          ),
+        ),
       );
       stream.on("end", () => {
         if (failed) return;
@@ -107,7 +115,12 @@ export function readMultipartFiles(request: IncomingMessage) {
     });
     busboy.on("filesLimit", () =>
       fail(
-        new HttpError(413, `Upload at most ${maxUploadFiles} files at once.`),
+        new HttpError(
+          413,
+          "TOO_MANY_UPLOADS",
+          `Upload at most ${maxUploadFiles} files at once.`,
+          { maxFiles: maxUploadFiles },
+        ),
       ),
     );
     busboy.on("error", fail);

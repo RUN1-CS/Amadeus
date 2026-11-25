@@ -45,10 +45,10 @@ async function confirmDelete() {
     class="hidden w-[278px] shrink-0 flex-col border-r border-[var(--theme-border)] bg-[var(--theme-sidebar)] px-[18px] py-7 md:flex"
   >
     <div class="flex items-center gap-3 px-2 pb-8">
-      <img src="/amadeus.svg" alt="Amadeus logo" class="w-48" />
+      <img src="/amadeus.svg" :alt="$t('chat.sidebar.amadeusLogo')" class="w-48" />
       <button
         class="ml-auto bg-transparent text-2xl leading-none text-[var(--theme-muted)]"
-        aria-label="Collapse sidebar"
+        :aria-label="$t('chat.sidebar.collapse')"
         @click="setSidebarVisible(false)"
       >
         ‹
@@ -59,14 +59,15 @@ async function confirmDelete() {
       class="flex w-full items-center gap-2.5 rounded-lg border border-[var(--theme-border)] bg-[var(--theme-input)] px-3.5 py-3 text-left text-xs font-bold text-[var(--theme-text)] shadow-sm transition hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)]"
       @click="createNewChat"
     >
-      <span class="text-lg leading-3 text-[var(--theme-accent)]">+</span> New conversation
+      <span class="text-lg leading-3 text-[var(--theme-accent)]">+</span>
+      {{ $t("chat.newConversation") }}
     </button>
 
     <div class="mt-9">
       <div
         class="flex items-center justify-between px-2.5 pb-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-[var(--theme-muted)]"
       >
-        <span>Today</span>
+        <span>{{ $t("chat.sidebar.today") }}</span>
         <span class="text-[var(--theme-subtle)]">{{ chats.length }}</span>
       </div>
       <div class="space-y-1">
@@ -88,7 +89,7 @@ async function confirmDelete() {
             role="button"
             tabindex="0"
             class="hidden px-1 text-xs text-[var(--theme-subtle)] hover:text-[var(--theme-accent)] group-hover:inline"
-            aria-label="Delete chat"
+            :aria-label="$t('chat.sidebar.deleteChat')"
             @click.stop="openDelete(chat)"
             @keydown.enter.stop="openDelete(chat)"
           >
@@ -98,7 +99,7 @@ async function confirmDelete() {
             role="button"
             tabindex="0"
             class="hidden px-1 text-xs text-[var(--theme-subtle)] hover:text-[var(--theme-accent)] group-hover:inline"
-            aria-label="Rename chat"
+            :aria-label="$t('chat.sidebar.renameChat')"
             @click.stop="openRename(chat)"
             @keydown.enter.stop="openRename(chat)"
           >
@@ -110,7 +111,8 @@ async function confirmDelete() {
 
     <div class="mt-auto border-t border-[var(--theme-border)] px-2 pt-4">
       <div class="flex items-center gap-2 font-mono text-[10px] text-[var(--theme-muted)]">
-        <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span> Ollama connected
+        <span class="size-1.5 rounded-full bg-[var(--theme-accent)]"></span>
+        {{ $t("chat.sidebar.ollamaConnected") }}
       </div>
       <div class="mt-2 flex items-center gap-2 font-mono text-[10px] text-[var(--theme-muted)]">
         <span
@@ -126,21 +128,34 @@ async function confirmDelete() {
         <span>
           {{
             comfyStatus === "connected"
-              ? "ComfyUI connected"
+              ? $t("chat.sidebar.comfyConnected")
               : comfyStatus === "checking"
-                ? "Checking ComfyUI"
-                : "ComfyUI unavailable"
+                ? $t("chat.sidebar.comfyChecking")
+                : $t("chat.sidebar.comfyUnavailable")
           }}
         </span>
       </div>
-      <div class="mt-4 flex gap-2 text-[10px] text-[var(--theme-subtle)]">
-        <span class="max-w-[130px] truncate text-[var(--theme-muted)]">{{ user?.username }}</span>
-        <span>·</span>
+      <div class="mt-4 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-input)] p-3">
+        <div class="flex min-w-0 items-center gap-3">
+          <span
+            aria-hidden="true"
+            class="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--theme-background)] text-sm font-bold uppercase text-[var(--theme-accent)]"
+          >
+            {{ user?.username?.charAt(0) }}
+          </span>
+          <strong class="min-w-0 truncate text-xs text-[var(--theme-text)]">
+            {{ user?.username }}
+          </strong>
+        </div>
+      </div>
+      <div
+        class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-[var(--theme-subtle)]"
+      >
         <button
           class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
           @click="router.push('/settings')"
         >
-          Settings
+          {{ $t("chat.sidebar.settings") }}
         </button>
         <template v-if="user?.isAdmin">
           <span>·</span>
@@ -148,12 +163,12 @@ async function confirmDelete() {
             class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]"
             @click="router.push('/admin')"
           >
-            Admin
+            {{ $t("chat.sidebar.admin") }}
           </button>
         </template>
         <span>·</span>
         <button class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]" @click="logout">
-          Log out
+          {{ $t("chat.sidebar.logout") }}
         </button>
       </div>
     </div>
@@ -167,9 +182,9 @@ async function confirmDelete() {
       class="w-full max-w-md rounded-xl bg-[var(--theme-surface)] p-6 shadow-xl"
       @submit.prevent="submitRename"
     >
-      <h2 class="text-lg font-bold">Rename chat</h2>
+      <h2 class="text-lg font-bold">{{ $t("chat.sidebar.renameTitle") }}</h2>
       <label class="mt-4 block text-sm font-semibold">
-        Chat name
+        {{ $t("chat.sidebar.chatName") }}
         <input
           v-model="renameValue"
           type="text"
@@ -183,13 +198,13 @@ async function confirmDelete() {
           class="px-3 py-2 text-sm text-[var(--theme-muted)]"
           @click="renameChatId = null"
         >
-          Cancel
+          {{ $t("chat.sidebar.cancel") }}
         </button>
         <button
           type="submit"
           class="rounded-lg bg-[var(--theme-accent)] px-4 py-2 text-sm font-bold text-white"
         >
-          Save
+          {{ $t("chat.sidebar.save") }}
         </button>
       </div>
     </form>
@@ -203,10 +218,11 @@ async function confirmDelete() {
       class="w-full max-w-md rounded-xl bg-[var(--theme-surface)] p-6 shadow-xl"
       @submit.prevent="confirmDelete"
     >
-      <h2 class="text-lg font-bold">Delete chat?</h2>
+      <h2 class="text-lg font-bold">{{ $t("chat.sidebar.deleteTitle") }}</h2>
       <p class="mt-2 text-sm leading-6 text-[var(--theme-muted)]">
-        Type <strong class="text-[#4d4841]">{{ deleteChatName }}</strong> to permanently delete this
-        conversation.
+        {{ $t("chat.sidebar.deletePromptBefore") }}
+        <strong class="text-[#4d4841]">{{ deleteChatName }}</strong>
+        {{ $t("chat.sidebar.deletePromptAfter") }}
       </p>
       <input
         v-model="deleteConfirmation"
@@ -220,14 +236,14 @@ async function confirmDelete() {
           class="px-3 py-2 text-sm text-[var(--theme-muted)]"
           @click="deleteChatId = null"
         >
-          Cancel
+          {{ $t("chat.sidebar.cancel") }}
         </button>
         <button
           type="submit"
           :disabled="deleteConfirmation !== deleteChatName"
           class="rounded-lg bg-[#a9432c] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Delete permanently
+          {{ $t("chat.sidebar.deletePermanently") }}
         </button>
       </div>
     </form>

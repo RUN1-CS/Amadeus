@@ -6,6 +6,7 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
+ARG VITE_NOVELTY=false
 RUN npm run build
 
 FROM nginx:1.29-alpine
