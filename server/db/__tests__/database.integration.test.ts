@@ -1,7 +1,8 @@
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { promisify } from "node:util";
-import { readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool } from "pg";
@@ -11,21 +12,24 @@ const containerName = `amadeus-db-test-${process.pid}-${Date.now()}`;
 const database = "amadeus";
 const user = "amadeus";
 const password = "amadeus-test";
+const databaseUrl = process.env.DATABASE_URL;
 
 let port = "";
-let dockerAvailable = false;
+let dockerAvailable = Boolean(databaseUrl);
 let pool: Pool | undefined;
 let persistedUserId = 0;
 let persistedChatId = 0;
 
-try {
-  execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
-    timeout: 30_000,
-    stdio: "ignore",
-  });
-  dockerAvailable = true;
-} catch {
-  dockerAvailable = false;
+if (!databaseUrl) {
+  try {
+    execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
+      timeout: 2_000,
+      stdio: "ignore",
+    });
+    dockerAvailable = true;
+  } catch {
+    dockerAvailable = false;
+  }
 }
 
 async function docker(args: string[]) {
@@ -53,6 +57,13 @@ async function waitForPostgres() {
 }
 
 beforeAll(async () => {
+  if (databaseUrl) {
+    pool = new Pool({ connectionString: databaseUrl });
+    await pool.query("SELECT 1");
+    const connection = new URL(databaseUrl);
+    port = connection.port || "5432";
+    return;
+  }
   try {
     await docker(["info", "--format", "{{.ServerVersion}}"]);
   } catch {
@@ -85,7 +96,7 @@ beforeAll(async () => {
   pool = new Pool({
     connectionString: `postgres://${user}:${password}@127.0.0.1:${port}/${database}`,
   });
-});
+}, 120_000);
 
 afterAll(async () => {
   await pool?.end();
@@ -95,6 +106,17 @@ afterAll(async () => {
 });
 
 async function psql(sql: string, db = database) {
+  if (databaseUrl) {
+    const url = new URL(databaseUrl);
+    url.pathname = `/${db}`;
+    const databasePool = new Pool({ connectionString: url.toString() });
+    try {
+      await databasePool.query(sql);
+    } finally {
+      await databasePool.end();
+    }
+    return;
+  }
   await new Promise<void>((resolve, reject) => {
     const child = spawn("docker", [
       "exec",
@@ -135,9 +157,12 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
 
   it("migrates from an older 001-only schema", async () => {
     if (!dockerAvailable) return;
-    await psql("CREATE DATABASE amadeus_old;");
+    const oldDatabase = `amadeus_old_${process.pid}`;
+    await psql(`CREATE DATABASE ${oldDatabase};`);
     const oldPool = new Pool({
-      connectionString: `postgres://${user}:${password}@127.0.0.1:${port}/amadeus_old`,
+      connectionString: databaseUrl
+        ? new URL(`/${oldDatabase}`, databaseUrl).toString()
+        : `postgres://${user}:${password}@127.0.0.1:${port}/${oldDatabase}`,
     });
     try {
       const migration001 = await readFile(
@@ -148,10 +173,10 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
           "001_init.sql",
         ),
       );
-      await psql(migration001.toString(), "amadeus_old");
+      await psql(migration001.toString(), oldDatabase);
       await psql(
         "CREATE TABLE migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now()); INSERT INTO migrations(name) VALUES ('001_init.sql');",
-        "amadeus_old",
+        oldDatabase,
       );
       const { default: migrate } = await import("../migrate.js");
       await migrate(oldPool);
@@ -241,58 +266,91 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
       [backupChatId, persistedUserId],
     );
 
-    await docker([
-      "exec",
-      containerName,
-      "pg_dump",
-      "-U",
-      user,
-      "-d",
-      database,
-      "--format=custom",
-      "--no-owner",
-      "--no-privileges",
-      "--exclude-table=public.user_data_keys",
-      "--file",
-      "/tmp/amadeus-test.dump",
-    ]);
+    const backupDirectory = await mkdtemp(join(tmpdir(), "amadeus-db-test-"));
+    const backupPath = join(backupDirectory, "amadeus-test.dump");
+    try {
+      if (databaseUrl) {
+        await exec("pg_dump", [
+          "--dbname",
+          databaseUrl,
+          "--format=custom",
+          "--no-owner",
+          "--no-privileges",
+          "--exclude-table=public.user_data_keys",
+          "--file",
+          backupPath,
+        ]);
+      } else {
+        await docker([
+          "exec",
+          containerName,
+          "pg_dump",
+          "-U",
+          user,
+          "-d",
+          database,
+          "--format=custom",
+          "--no-owner",
+          "--no-privileges",
+          "--exclude-table=public.user_data_keys",
+          "--file",
+          "/tmp/amadeus-test.dump",
+        ]);
+      }
 
-    await pool!.query("DELETE FROM chats WHERE id = $1", [backupChatId]);
-    const afterChat = await pool!.query(
-      `INSERT INTO chats (user_id, title)
+      await pool!.query("DELETE FROM chats WHERE id = $1", [backupChatId]);
+      const afterChat = await pool!.query(
+        `INSERT INTO chats (user_id, title)
        VALUES ($1, 'After backup') RETURNING id`,
-      [persistedUserId],
-    );
-    const afterChatId = Number(afterChat.rows[0].id);
+        [persistedUserId],
+      );
+      const afterChatId = Number(afterChat.rows[0].id);
 
-    await docker([
-      "exec",
-      containerName,
-      "pg_restore",
-      "-U",
-      user,
-      "--exit-on-error",
-      "--clean",
-      "--if-exists",
-      "--no-owner",
-      "--no-privileges",
-      "--single-transaction",
-      "-d",
-      database,
-      "/tmp/amadeus-test.dump",
-    ]);
+      if (databaseUrl) {
+        await exec("pg_restore", [
+          "--dbname",
+          databaseUrl,
+          "--exit-on-error",
+          "--clean",
+          "--if-exists",
+          "--no-owner",
+          "--no-privileges",
+          "--single-transaction",
+          backupPath,
+        ]);
+      } else {
+        await docker([
+          "exec",
+          containerName,
+          "pg_restore",
+          "-U",
+          user,
+          "--exit-on-error",
+          "--clean",
+          "--if-exists",
+          "--no-owner",
+          "--no-privileges",
+          "--single-transaction",
+          "-d",
+          database,
+          "/tmp/amadeus-test.dump",
+        ]);
+      }
 
-    const result = await pool!.query(
-      "SELECT id, title FROM chats WHERE user_id = $1 ORDER BY id",
-      [persistedUserId],
-    );
-    expect(result.rows).toContainEqual({
-      id: String(backupChatId),
-      title: "Before backup",
-    });
-    expect(result.rows).not.toContainEqual({
-      id: String(afterChatId),
-      title: "After backup",
-    });
+      const result = await pool!.query(
+        "SELECT id, title FROM chats WHERE user_id = $1 ORDER BY id",
+        [persistedUserId],
+      );
+      expect(result.rows).toContainEqual({
+        id: String(backupChatId),
+        title: "Before backup",
+      });
+      expect(result.rows).not.toContainEqual({
+        id: String(afterChatId),
+        title: "After backup",
+      });
+    } finally {
+      await rm(backupDirectory, { recursive: true, force: true });
+    }
   });
 });
