@@ -7,6 +7,7 @@
     "build": "tsc",
     "dev": "tsx watch index.ts",
     "start": "node dist/index.js",
+    "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "@types/pg": "^8.15.5",
     "@types/ws": "^8.18.0",
     "tsx": "^4.0.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.2"
   }
 }
