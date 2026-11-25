@@ -66,6 +66,7 @@ const user = {
   aboutMe: "",
   customBehavior: "",
   isAdmin: false,
+  isOwner: false,
 };
 
 let server: Server;

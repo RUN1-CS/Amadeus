@@ -54,6 +54,7 @@ const alice = {
   aboutMe: "",
   customBehavior: "",
   isAdmin: false,
+  isOwner: false,
 };
 
 function chat(id: number, title = `Chat ${id}`) {
@@ -92,6 +93,33 @@ describe("Ollama frontend store", () => {
     expect(localStorage.getItem("amadeus_token")).toBe("session-token");
     expect(store.activeChatId).toBe(1);
     expect(mocks.connect).toHaveBeenCalledOnce();
+  });
+
+  it("does not connect a socket if the user logs out while initialization is pending", async () => {
+    let finishChatLoad!: (value: { chats: ReturnType<typeof chat>[] }) => void;
+    const chatLoad = new Promise<{ chats: ReturnType<typeof chat>[] }>((resolve) => {
+      finishChatLoad = resolve;
+    });
+    mocks.apiRequest.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (path === "/api/auth/login") return { user: alice, token: "session-token" };
+      if (path === "/api/comfy/models") {
+        return { models: ["checkpoint"], defaultNegativePrompt: "" };
+      }
+      if (path === "/api/chats" && options?.method === "POST") return { chatId: 2 };
+      if (path === "/api/chats") return chatLoad;
+      if (path === "/api/chats/2/messages") return { messages: [] };
+      throw new Error(`Unexpected API request: ${options?.method ?? "GET"} ${path}`);
+    });
+
+    const store = useOllamaStore();
+    const login = store.loginUser("alice", "password1");
+    await vi.waitFor(() => expect(store.user).toEqual(alice));
+    store.logout();
+    finishChatLoad({ chats: [] });
+    await login;
+
+    expect(store.user).toBeNull();
+    expect(mocks.connect).not.toHaveBeenCalled();
   });
 
   it("creates and deletes chats while updating active state", async () => {

@@ -6,6 +6,7 @@ import {
   getAdminUsers,
   getServerLogs,
   isAdmin,
+  setUserRole,
   getAiModelAccess,
   setAiModelEnabled,
   reconcileUsersAfterRestore,
@@ -22,7 +23,7 @@ import {
   databaseBackupMaxUploadBytes,
   databaseBackupsEnabled,
 } from "../config.js";
-import { clearUserCache } from "../sessions.js";
+import { clearUserCache, invalidateUserCache } from "../sessions.js";
 import {
   readJson,
   receiveBackupUpload,
@@ -169,6 +170,46 @@ export async function handleAdminRequest(
       return true;
     }
     sendJson(response, 200, await getAdminUsers(beforeId));
+    return true;
+  }
+
+  const roleMatch = path.match(/^\/api\/admin\/users\/([1-9]\d*)\/role$/);
+  if (roleMatch && request.method === "PATCH") {
+    if (!(await requireAdmin(user.id, response))) return true;
+    if (
+      roleMatch[1]!.length > 19 ||
+      BigInt(roleMatch[1]!) > 9223372036854775807n
+    ) {
+      sendError(response, 400, "INVALID_USER_ID", "Invalid user ID.");
+      return true;
+    }
+    const body = await readJson(request);
+    if (body.role !== "user" && body.role !== "admin" && body.role !== "owner") {
+      sendError(
+        response,
+        400,
+        "INVALID_USER_ROLE",
+        "Choose a valid account role.",
+      );
+      return true;
+    }
+
+    const result = await setUserRole(user.id, roleMatch[1]!, body.role);
+    if (!result.success) {
+      const failures = {
+        not_admin: [403, "ADMINISTRATOR_REQUIRED", "Administrator access is required."],
+        owner_required: [403, "OWNER_REQUIRED", "Only the owner can assign the owner role."],
+        owner_protected: [409, "OWNER_PROTECTED", "The owner cannot be demoted."],
+        not_found: [404, "USER_NOT_FOUND", "User not found."],
+      } as const;
+      const [status, code, message] = failures[result.reason];
+      sendError(response, status, code, message);
+      return true;
+    }
+    for (const affectedUserId of result.affectedUserIds) {
+      invalidateUserCache(affectedUserId);
+    }
+    sendJson(response, 200, { updated: true });
     return true;
   }
 

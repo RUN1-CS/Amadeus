@@ -8,6 +8,7 @@ export { register, login, updateAccount, deleteAccount } from "./db/users.js";
 export { createSession, getUserBySession } from "./db/sessions.js";
 export {
   isAdmin,
+  setUserRole,
   getAdminOverview,
   getAdminUsers,
   getServerLogs,

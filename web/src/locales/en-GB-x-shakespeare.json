@@ -90,9 +90,28 @@
   },
   "common": {
     "backToChat": "Return to discourse",
+    "backHome": "Return to the homeward page",
     "cancel": "Abandon",
     "retry": "Try once more",
     "loading": "Loading..."
+  },
+  "errors": {
+    "403": {
+      "title": "Access denied",
+      "description": "Thou hast not permission to enter this page."
+    },
+    "404": {
+      "title": "Page not found",
+      "description": "The page thou seekest could not be found. It may have moved or ceased to exist."
+    },
+    "500": {
+      "title": "Something hath gone awry",
+      "description": "An unforeseen error hath occurred. Pray, try again anon."
+    },
+    "503": {
+      "title": "Service unavailable",
+      "description": "The service is temporarily unavailable. Pray, try again anon."
+    }
   },
   "settings": {
     "settings": "Settings",
@@ -202,7 +221,12 @@
       "accountId": "Account ID",
       "joined": "Joined",
       "role": "Role",
+      "roleFor": "Role for {username}",
+      "userRole": "User",
       "admin": "Administrator",
+      "owner": "Owner",
+      "transferConfirm": "Transfer ownership to {username}? Thou shalt become an administrator.",
+      "couldNotUpdate": "The account role could not be changed.",
       "none": "No users were found.",
       "loading": "Summoning users...",
       "allLoaded": "All users have been retrieved!",
@@ -288,9 +312,15 @@
     "MEMORY_CONTENT_REQUIRED": "Memory content is required.",
     "MEMORY_NOT_FOUND": "The requested memory could not be found.",
     "ADMINISTRATOR_REQUIRED": "Administrator privileges are required.",
+    "OWNER_REQUIRED": "Only the owner may bestow the owner role.",
+    "OWNER_PROTECTED": "The owner may not be demoted.",
+    "OWNER_CANNOT_BE_DELETED": "The owner's account may not be deleted.",
+    "USER_NOT_FOUND": "This user could not be found.",
+    "INVALID_USER_ROLE": "Choose a valid account role.",
     "BACKUPS_DISABLED": "Backups have been disabled.",
     "INVALID_BACKUP_CONTENT_TYPE": "The backup file type is invalid.",
     "INVALID_USER_CURSOR": "The user pagination cursor is invalid.",
+    "INVALID_USER_ID": "The selected account ID is invalid.",
     "INVALID_LOG_LEVEL": "The log level is invalid.",
     "LOG_EVENT_TOO_LONG": "The log event exceedeth the permitted length.",
     "INVALID_LOG_CURSOR": "The log pagination cursor is invalid.",

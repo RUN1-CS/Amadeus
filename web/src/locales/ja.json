@@ -90,9 +90,28 @@
   },
   "common": {
     "backToChat": "← 会話一覧に戻る",
+    "backHome": "ホームに戻る",
     "cancel": "キャンセル",
     "retry": "再試行",
     "loading": "読み込み中..."
+  },
+  "errors": {
+    "403": {
+      "title": "アクセスが拒否されました",
+      "description": "このページにアクセスする権限がありません。"
+    },
+    "404": {
+      "title": "ページが見つかりません",
+      "description": "お探しのページが見つかりませんでした。移動または削除された可能性があります。"
+    },
+    "500": {
+      "title": "問題が発生しました",
+      "description": "予期しないエラーが発生しました。しばらくしてからもう一度お試しください。"
+    },
+    "503": {
+      "title": "サービスを利用できません",
+      "description": "サービスは一時的に利用できません。しばらくしてからもう一度お試しください。"
+    }
   },
   "settings": {
     "settings": "設定",
@@ -202,7 +221,12 @@
       "accountId": "アカウントID",
       "joined": "登録日",
       "role": "アカウント権限",
+      "roleFor": "{username}の権限",
+      "userRole": "ユーザー",
       "admin": "管理者",
+      "owner": "オーナー",
+      "transferConfirm": "{username}にオーナー権限を譲渡しますか？あなたは管理者になります。",
+      "couldNotUpdate": "アカウントの権限を変更できませんでした。",
       "none": "ユーザーアカウントが見つかりません。",
       "loading": "アカウントを読み込んでいます...",
       "allLoaded": "すべてのアカウントを読み込みました。",
@@ -288,9 +312,15 @@
     "MEMORY_CONTENT_REQUIRED": "メモリーの内容を入力してください。",
     "MEMORY_NOT_FOUND": "メモリーが見つかりません。",
     "ADMINISTRATOR_REQUIRED": "この操作には管理者権限が必要です。",
+    "OWNER_REQUIRED": "オーナー権限を付与できるのはオーナーのみです。",
+    "OWNER_PROTECTED": "オーナーの権限は変更できません。",
+    "OWNER_CANNOT_BE_DELETED": "オーナーのアカウントは削除できません。",
+    "USER_NOT_FOUND": "ユーザーが見つかりません。",
+    "INVALID_USER_ROLE": "有効なアカウント権限を選択してください。",
     "BACKUPS_DISABLED": "サーバー設定によりデータベースのバックアップ機能は無効になっています。",
     "INVALID_BACKUP_CONTENT_TYPE": "バックアップはapplication/octet-stream形式でアップロードしてください。",
     "INVALID_USER_CURSOR": "アカウントのページネーション情報が無効です。ページを再読み込みしてください。",
+    "INVALID_USER_ID": "選択したアカウントIDが無効です。",
     "INVALID_LOG_LEVEL": "選択されたログレベルが無効です。",
     "LOG_EVENT_TOO_LONG": "イベントフィルターが長すぎます。",
     "INVALID_LOG_CURSOR": "ログのページネーション情報が無効です。ログ一覧を再読み込みしてください。",

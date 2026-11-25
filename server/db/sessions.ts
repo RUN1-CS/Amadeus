@@ -24,7 +24,8 @@ export async function getUserBySession(token: string | undefined) {
   if (!token) return null;
   const result = await pool.query<SessionRow>(
     `SELECT users.id, users.username, users.about_me, users.custom_behavior,
-       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin,
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id AND is_owner) AS is_owner
      FROM sessions
      JOIN users ON users.id = sessions.user_id
      WHERE sessions.session_token = $1 AND sessions.expires_at > CURRENT_TIMESTAMP`,

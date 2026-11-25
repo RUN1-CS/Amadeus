@@ -37,6 +37,11 @@ async function confirmDelete() {
   await deleteChat(deleteChatId.value);
   deleteChatId.value = null;
 }
+
+function signOut() {
+  logout();
+  void router.replace("/login");
+}
 </script>
 
 <template>
@@ -167,7 +172,7 @@ async function confirmDelete() {
           </button>
         </template>
         <span>·</span>
-        <button class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]" @click="logout">
+        <button class="text-[var(--theme-muted)] hover:text-[var(--theme-accent)]" @click="signOut">
           {{ $t("chat.sidebar.logout") }}
         </button>
       </div>

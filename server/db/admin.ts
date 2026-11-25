@@ -11,6 +11,95 @@ export async function isAdmin(userId: number): Promise<boolean> {
   return result.rowCount === 1;
 }
 
+export type ManagedRole = "user" | "admin" | "owner";
+
+export type UserRoleChange =
+  | { success: true; affectedUserIds: number[] }
+  | {
+      success: false;
+      reason: "not_admin" | "owner_required" | "owner_protected" | "not_found";
+    };
+
+export async function setUserRole(
+  actorId: number,
+  targetId: string,
+  role: ManagedRole,
+): Promise<UserRoleChange> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext('amadeus_user_roles'))",
+    );
+    const actor = await client.query<{ is_admin: boolean; is_owner: boolean }>(
+      `SELECT EXISTS (SELECT 1 FROM user_admins WHERE user_id = $1) AS is_admin,
+         EXISTS (SELECT 1 FROM user_admins WHERE user_id = $1 AND is_owner) AS is_owner`,
+      [actorId],
+    );
+    if (!actor.rows[0]?.is_admin) {
+      await client.query("ROLLBACK");
+      return { success: false, reason: "not_admin" };
+    }
+
+    const target = await client.query<{ id: number; is_owner: boolean }>(
+      `SELECT users.id,
+         EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id AND is_owner) AS is_owner
+       FROM users WHERE users.id = $1::bigint`,
+      [targetId],
+    );
+    if (!target.rows[0]) {
+      await client.query("ROLLBACK");
+      return { success: false, reason: "not_found" };
+    }
+    if (role === "owner" && !actor.rows[0].is_owner) {
+      await client.query("ROLLBACK");
+      return { success: false, reason: "owner_required" };
+    }
+    if (target.rows[0].is_owner && role !== "owner") {
+      await client.query("ROLLBACK");
+      return { success: false, reason: "owner_protected" };
+    }
+
+    const affectedUserIds = [target.rows[0].id];
+    if (role === "owner") {
+      const currentOwner = await client.query<{ user_id: number }>(
+        "SELECT user_id FROM user_admins WHERE is_owner FOR UPDATE",
+      );
+      if (currentOwner.rows[0]) {
+        affectedUserIds.push(currentOwner.rows[0].user_id);
+        await client.query(
+          "UPDATE user_admins SET is_owner = FALSE WHERE user_id = $1",
+          [currentOwner.rows[0].user_id],
+        );
+      }
+      await client.query(
+        `INSERT INTO user_admins (user_id, granted_by, is_owner)
+         VALUES ($1::bigint, $2, TRUE)
+         ON CONFLICT (user_id) DO UPDATE SET is_owner = TRUE`,
+        [targetId, actorId],
+      );
+    } else if (role === "admin") {
+      await client.query(
+        `INSERT INTO user_admins (user_id, granted_by)
+         VALUES ($1::bigint, $2)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [targetId, actorId],
+      );
+    } else {
+      await client.query("DELETE FROM user_admins WHERE user_id = $1::bigint", [
+        targetId,
+      ]);
+    }
+    await client.query("COMMIT");
+    return { success: true, affectedUserIds: [...new Set(affectedUserIds)] };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 // Return high-level account and usage metrics without exposing private chat or memory contents.
 export async function getAdminOverview() {
   const [stats, recentUsers] = await Promise.all([
@@ -54,9 +143,11 @@ export async function getAdminUsers(beforeId?: string) {
         username: string;
         createdAt: string;
         isAdmin: boolean;
+        isOwner: boolean;
       }>(
         `SELECT users.id::text AS id, username, created_at AS "createdAt",
-           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin"
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin",
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id AND is_owner) AS "isOwner"
          FROM users WHERE users.id < $1::bigint
          ORDER BY users.id DESC LIMIT $2`,
         [beforeId, pageSize + 1],
@@ -66,9 +157,11 @@ export async function getAdminUsers(beforeId?: string) {
         username: string;
         createdAt: string;
         isAdmin: boolean;
+        isOwner: boolean;
       }>(
         `SELECT users.id::text AS id, username, created_at AS "createdAt",
-           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin"
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS "isAdmin",
+           EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id AND is_owner) AS "isOwner"
          FROM users ORDER BY users.id DESC LIMIT $1`,
         [pageSize + 1],
       );
