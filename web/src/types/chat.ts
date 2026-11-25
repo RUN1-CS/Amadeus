@@ -93,3 +93,8 @@ export interface MemoryPayload {
   source: string;
   metadata?: Record<string, unknown>;
 }
+
+export interface Language {
+  code: string;
+  name: string;
+}

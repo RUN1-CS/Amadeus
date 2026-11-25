@@ -12,7 +12,7 @@ import type {
   SavedMessage,
   User,
   ServerMessage,
-} from "../types/chat";
+} from "@/types/chat";
 import { mapSavedMessages } from "./ollama/messages";
 import { createSocketClient, maxSocketPayloadChars } from "./ollama/socket";
 import {
