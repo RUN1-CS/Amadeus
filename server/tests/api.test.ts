@@ -66,6 +66,14 @@ const user = {
   isAdmin: false,
 };
 
+const otherUser = {
+  id: 8,
+  username: "bob",
+  aboutMe: "",
+  customBehavior: "",
+  isAdmin: false,
+};
+
 let server: Server;
 let baseUrl: string;
 
@@ -84,9 +92,11 @@ afterAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getCachedUserBySession.mockImplementation(async (token) =>
-    token === "valid-token" ? user : undefined,
-  );
+  mocks.getCachedUserBySession.mockImplementation(async (token) => {
+    if (token === "valid-token") return user;
+    if (token === "other-valid-token") return otherUser;
+    return undefined;
+  });
 });
 
 async function api(
@@ -174,6 +184,138 @@ describe("HTTP API", () => {
     expect(response.status).toBe(200);
     expect(body.chats).toHaveLength(1);
     expect(mocks.listChats).toHaveBeenCalledWith(user.id);
+  });
+
+  it("User A cannot access User B's chats", async () => {
+    mocks.listChats.mockImplementation(async (userId: number) =>
+      userId === user.id
+        ? [{ id: 12, title: "Alice chat" }]
+        : [{ id: 99, title: "Bob chat" }],
+    );
+    mocks.getChatMessages.mockImplementation(
+      async (userId: number, chatId: number) =>
+        userId === otherUser.id && chatId === 99
+          ? [{ id: 1, role: "user", content: "Bob secret" }]
+          : null,
+    );
+    mocks.renameChat.mockResolvedValue(null);
+    mocks.deleteChat.mockResolvedValue(false);
+
+    const listResponse = await api("/api/chats", {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    expect(listResponse.body.chats).toEqual([
+      { id: 12, title: "Alice chat" },
+    ]);
+
+    const messagesResponse = await api("/api/chats/99/messages", {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    expect(messagesResponse.response.status).toBe(404);
+    expect(messagesResponse.body.localizationCode).toBe("CHAT_NOT_FOUND");
+    expect(mocks.getChatMessages).toHaveBeenCalledWith(user.id, 99);
+
+    const renameResponse = await api(
+      "/api/chats/99",
+      jsonRequest("PATCH", { title: "Hacked" }, "valid-token"),
+    );
+    expect(renameResponse.response.status).toBe(404);
+
+    const deleteResponse = await api("/api/chats/99", {
+      method: "DELETE",
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    expect(deleteResponse.response.status).toBe(404);
+  });
+
+  it("User A cannot access User B's files", async () => {
+    mocks.ownsChat.mockImplementation(
+      async (userId: number, chatId: number) =>
+        userId === user.id && chatId === 12,
+    );
+
+    const { response, body } = await api(
+      "/api/chats/99/upload",
+      jsonRequest("POST", {}, "valid-token"),
+    );
+    expect(response.status).toBe(404);
+    expect(body.localizationCode).toBe("CHAT_NOT_FOUND");
+    expect(mocks.ownsChat).toHaveBeenCalledWith(user.id, 99);
+  });
+
+  it("User A cannot access User B's memories", async () => {
+    mocks.getMemoriesByUserId.mockImplementation(async (userId: number) =>
+      userId === user.id
+        ? [{ id: 5, content: "Alice memory" }]
+        : [{ id: 50, content: "Bob memory" }],
+    );
+    mocks.updateMemory.mockImplementation(
+      async (memoryId: number, userId: number) =>
+        userId === otherUser.id && memoryId === 50
+          ? { id: memoryId, content: "Bob memory" }
+          : null,
+    );
+    mocks.deleteMemory.mockImplementation(
+      async (memoryId: number, userId: number) =>
+        userId === otherUser.id && memoryId === 50,
+    );
+
+    const listResponse = await api("/api/memories", {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    expect(listResponse.body.memories).toEqual([
+      { id: 5, content: "Alice memory" },
+    ]);
+
+    const updateResponse = await api(
+      "/api/memories/50",
+      jsonRequest("PATCH", { content: "Hacked" }, "valid-token"),
+    );
+    expect(updateResponse.response.status).toBe(404);
+    expect(mocks.updateMemory).toHaveBeenCalledWith(
+      50,
+      user.id,
+      expect.any(Object),
+    );
+
+    const deleteResponse = await api("/api/memories/50", {
+      method: "DELETE",
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    expect(deleteResponse.response.status).toBe(404);
+  });
+
+  it("regular users cannot access admin endpoints", async () => {
+    mocks.isAdmin.mockResolvedValue(false);
+
+    for (const path of [
+      "/api/admin/overview",
+      "/api/admin/users",
+      "/api/admin/logs",
+      "/api/admin/backups",
+      "/api/admin/models",
+    ]) {
+      const { response, body } = await api(path, {
+        headers: { Authorization: "Bearer valid-token" },
+      });
+      expect(response.status).toBe(403);
+      expect(body.localizationCode).toBe("ADMINISTRATOR_REQUIRED");
+    }
+  });
+
+  it("expired sessions cannot access protected resources", async () => {
+    for (const path of [
+      "/api/auth/me",
+      "/api/chats",
+      "/api/memories",
+      "/api/admin/overview",
+    ]) {
+      const { response, body } = await api(path, {
+        headers: { Authorization: "Bearer expired-token" },
+      });
+      expect(response.status).toBe(401);
+      expect(body.localizationCode).toBe("AUTHENTICATION_REQUIRED");
+    }
   });
 
   it("creates a chat", async () => {
