@@ -1,5 +1,4 @@
-import { execFile, execFileSync } from "node:child_process";
-import { spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -125,7 +124,7 @@ async function psql(sql: string, db = database) {
 describe.skipIf(!dockerAvailable)("Database integration", () => {
   it("migrates an empty database", async () => {
     if (!dockerAvailable) return;
-    const { default: migrate } = await import("../db/migrate.js");
+    const { default: migrate } = await import("../migrate.js");
     await migrate(pool!);
     const result = await pool!.query(
       "SELECT name FROM migrations ORDER BY name",
@@ -145,7 +144,6 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
         join(
           dirname(fileURLToPath(import.meta.url)),
           "..",
-          "db",
           "migrations",
           "001_init.sql",
         ),
@@ -155,7 +153,7 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
         "CREATE TABLE migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now()); INSERT INTO migrations(name) VALUES ('001_init.sql');",
         "amadeus_old",
       );
-      const { default: migrate } = await import("../db/migrate.js");
+      const { default: migrate } = await import("../migrate.js");
       await migrate(oldPool);
       const result = await oldPool.query(
         "SELECT name FROM migrations ORDER BY name",
@@ -173,7 +171,6 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
     const migrationDir = join(
       dirname(fileURLToPath(import.meta.url)),
       "..",
-      "db",
       "migrations",
     );
     const migrationPath = join(migrationDir, "998_rollback_test.sql");
@@ -184,7 +181,7 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
       "CREATE TABLE migration_rollback_marker (id integer); THIS IS INVALID SQL;",
     );
     try {
-      const { default: migrate } = await import("../db/migrate.js");
+      const { default: migrate } = await import("../migrate.js");
       await expect(migrate(pool!)).rejects.toThrow();
       const marker = await pool!.query(
         "SELECT to_regclass('public.migration_rollback_marker') AS marker",
