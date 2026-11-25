@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   updateMemory: vi.fn(),
   deleteMemory: vi.fn(),
   isAdmin: vi.fn(),
+  setUserRole: vi.fn(),
   getAdminOverview: vi.fn(),
   getAdminUsers: vi.fn(),
   getServerLogs: vi.fn(),
@@ -72,6 +73,7 @@ const user = {
   aboutMe: "",
   customBehavior: "",
   isAdmin: false,
+  isOwner: false,
 };
 
 const otherUser = {
@@ -80,6 +82,7 @@ const otherUser = {
   aboutMe: "",
   customBehavior: "",
   isAdmin: false,
+  isOwner: false,
 };
 
 let server: Server;
@@ -310,9 +313,69 @@ describe("HTTP API", () => {
       const { response, body } = await api(path, {
         headers: { Authorization: "Bearer valid-token" },
       });
+
       expect(response.status).toBe(403);
       expect(body.localizationCode).toBe("ADMINISTRATOR_REQUIRED");
     }
+  });
+
+  it("allows administrators to request account role changes", async () => {
+    mocks.isAdmin.mockResolvedValue(true);
+    mocks.setUserRole.mockResolvedValue({
+      success: true,
+      affectedUserIds: [8],
+    });
+
+    const { response, body } = await api(
+      "/api/admin/users/8/role",
+      jsonRequest("PATCH", { role: "admin" }, "valid-token"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ updated: true });
+    expect(mocks.setUserRole).toHaveBeenCalledWith(user.id, "8", "admin");
+    expect(mocks.invalidateUserCache).toHaveBeenCalledWith(8);
+  });
+
+  it("rejects invalid roles without changing account permissions", async () => {
+    mocks.isAdmin.mockResolvedValue(true);
+
+    const { response, body } = await api(
+      "/api/admin/users/8/role",
+      jsonRequest("PATCH", { role: "superadmin" }, "valid-token"),
+    );
+
+    expect(response.status).toBe(400);
+    expect(body.localizationCode).toBe("INVALID_USER_ROLE");
+    expect(mocks.setUserRole).not.toHaveBeenCalled();
+  });
+
+  it("prevents deleting the owner account", async () => {
+    mocks.deleteAccount.mockResolvedValue("owner_protected");
+
+    const { response, body } = await api(
+      "/api/auth/delete",
+      jsonRequest("POST", { currentPassword: "password1" }, "valid-token"),
+    );
+
+    expect(response.status).toBe(409);
+    expect(body.localizationCode).toBe("OWNER_CANNOT_BE_DELETED");
+  });
+
+  it("does not allow a regular administrator to assign the owner role", async () => {
+    mocks.isAdmin.mockResolvedValue(true);
+    mocks.setUserRole.mockResolvedValue({
+      success: false,
+      reason: "owner_required",
+    });
+
+    const { response, body } = await api(
+      "/api/admin/users/8/role",
+      jsonRequest("PATCH", { role: "owner" }, "valid-token"),
+    );
+
+    expect(response.status).toBe(403);
+    expect(body.localizationCode).toBe("OWNER_REQUIRED");
   });
 
   it("expired sessions cannot access protected resources", async () => {

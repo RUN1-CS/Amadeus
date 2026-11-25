@@ -52,7 +52,8 @@ Authentication responses and account responses use this shape:
   "username": "example",
   "aboutMe": "",
   "customBehavior": "",
-  "isAdmin": false
+  "isAdmin": true,
+  "isOwner": true
 }
 ```
 
@@ -98,7 +99,8 @@ Responses:
       "username": "example",
       "aboutMe": "",
       "customBehavior": "",
-      "isAdmin": false
+      "isAdmin": true,
+      "isOwner": true
     },
     "token": "<session-token>"
   }
@@ -133,7 +135,8 @@ Responses:
       "username": "example",
       "aboutMe": "",
       "customBehavior": "",
-      "isAdmin": false
+      "isAdmin": true,
+      "isOwner": true
     },
     "token": "<session-token>"
   }
@@ -160,7 +163,8 @@ Response: `200`
     "username": "example",
     "aboutMe": "",
     "customBehavior": "",
-    "isAdmin": false
+    "isAdmin": true,
+    "isOwner": true
   }
 }
 ```
@@ -180,18 +184,29 @@ the eight most recently registered usernames, and the latest cached Ollama and
 ComfyUI model-discovery status. The route requires an active session and an
 entry for the user in `user_admins`; other signed-in users receive `403`.
 
-Admin membership is not assigned automatically. After the `002_user_admins.sql`
-migration has run, grant membership to a known account with:
+The first account is the server owner. The owner is also an administrator and
+cannot be demoted or deleted. Only the owner can transfer ownership; on transfer
+the previous owner remains an administrator. The owner role is stored in
+`user_admins` by the `008_user_owner.sql` migration.
 
-```sql
-INSERT INTO user_admins (user_id)
-SELECT id FROM users WHERE id = 123;
+Administrators can promote or demote other accounts, but cannot assign the owner
+role or demote the owner. The owner can assign any role:
+
+```http
+PATCH /api/admin/users/{userId}/role
+Authorization: ******
+Content-Type: application/json
+
+{"role":"admin"}
 ```
 
-Usernames are encrypted at rest; use the Admin dashboard to find the account
-ID rather than querying the encrypted `users.username` column.
+Set `role` to `user`, `admin`, or (owner only) `owner`. A successful change
+returns `{"updated":true}`. Assigning `owner` transfers ownership and makes the
+previous owner an administrator.
 
-The `isAdmin` property in public user responses reflects current membership.
+Usernames are encrypted at rest; use the Admin dashboard to find the account
+ID rather than querying the encrypted `users.username` column. The public
+`isAdmin` and `isOwner` properties reflect current membership.
 
 ### Database backups (admin)
 
@@ -229,8 +244,9 @@ uses a keyed digest, and session tokens are stored as hashes.
 
 `POST /api/auth/delete` requires an active session and the current password.
 It deletes the user's key-table entry and active account data in one database
-transaction. Backup dumps deliberately exclude `user_data_keys`, so deleted
-users' data in a dump remains ciphertext without a decryption key. Old
+transaction. The owner account cannot be deleted. Backup dumps deliberately
+exclude `user_data_keys`, so deleted users' data in a dump remains ciphertext
+without a decryption key. Old
 application-generated dumps are purged once during encryption deployment, and
 restore rejects dumps without the encryption manifest.
 

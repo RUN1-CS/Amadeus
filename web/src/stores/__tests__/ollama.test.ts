@@ -54,6 +54,7 @@ const alice = {
   aboutMe: "",
   customBehavior: "",
   isAdmin: false,
+  isOwner: false,
 };
 
 function chat(id: number, title = `Chat ${id}`) {

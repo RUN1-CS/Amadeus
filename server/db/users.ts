@@ -20,6 +20,7 @@ export function publicUser(
     aboutMe: user.about_me ?? "",
     customBehavior: user.custom_behavior ?? "",
     isAdmin: user.is_admin ?? false,
+    isOwner: user.is_owner ?? false,
   };
 }
 
@@ -34,6 +35,9 @@ export async function register(username: string, password: string) {
   const normalizedUsername = normalizeUsername(username);
   try {
     await client.query("BEGIN");
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext('amadeus_user_roles'))",
+    );
     const result = await client.query<{ id: number }>(
       `INSERT INTO users (username, password_hash)
        VALUES ('pending', 'pending') RETURNING id`,
@@ -60,10 +64,13 @@ export async function register(username: string, password: string) {
         encryptUserValue("", key),
       ],
     );
-    if (Number(userId) === 1) {
-      await client.query("INSERT INTO user_admins (user_id) VALUES ($1)", [
-        userId,
-      ]);
+    const owner = await client.query("SELECT 1 FROM user_admins WHERE is_owner");
+    const isOwner = owner.rowCount === 0;
+    if (isOwner) {
+      await client.query(
+        "INSERT INTO user_admins (user_id, is_owner) VALUES ($1, TRUE)",
+        [userId],
+      );
     }
     await client.query("COMMIT");
     return {
@@ -71,7 +78,8 @@ export async function register(username: string, password: string) {
       username: normalizedUsername,
       aboutMe: "",
       customBehavior: "",
-      isAdmin: Number(userId) === 1,
+      isAdmin: isOwner,
+      isOwner,
     };
   } catch (error) {
     await client.query("ROLLBACK");
@@ -86,7 +94,8 @@ export async function login(username: string, password: string) {
   const result = await pool.query<UserRow>(
     `SELECT users.id, users.username, users.password_hash, users.about_me,
        users.custom_behavior,
-       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin,
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id AND is_owner) AS is_owner
      FROM users
      JOIN user_data_keys ON user_data_keys.user_id = users.id
      WHERE user_data_keys.username_lookup = $1`,
@@ -120,7 +129,8 @@ export async function updateAccount(
     const result = await client.query<UserRow>(
       `SELECT id, username, password_hash, about_me,
        custom_behavior,
-       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id) AS is_admin,
+       EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id AND is_owner) AS is_owner
      FROM users WHERE id = $1 FOR UPDATE`,
       [userId],
     );
@@ -178,18 +188,26 @@ export async function updateAccount(
 export async function deleteAccount(
   userId: number,
   currentPassword: string,
-): Promise<boolean> {
+): Promise<"deleted" | "invalid_password" | "owner_protected"> {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const result = await client.query<{ password_hash: string }>(
-      "SELECT password_hash FROM users WHERE id = $1 FOR UPDATE",
+    await client.query(
+      "SELECT pg_advisory_xact_lock(hashtext('amadeus_user_roles'))",
+    );
+    const result = await client.query<{
+      password_hash: string;
+      is_owner: boolean;
+    }>(
+      `SELECT password_hash,
+         EXISTS (SELECT 1 FROM user_admins WHERE user_id = users.id AND is_owner) AS is_owner
+       FROM users WHERE id = $1 FOR UPDATE`,
       [userId],
     );
     const user = result.rows[0];
-    if (!user) {
+    if (!user || !user.password_hash) {
       await client.query("ROLLBACK");
-      return false;
+      return "invalid_password";
     }
     const key = await getUserDataKey(client, userId);
     if (
@@ -200,7 +218,11 @@ export async function deleteAccount(
       )
     ) {
       await client.query("ROLLBACK");
-      return false;
+      return "invalid_password";
+    }
+    if (user.is_owner) {
+      await client.query("ROLLBACK");
+      return "owner_protected";
     }
 
     await client.query("DELETE FROM user_data_keys WHERE user_id = $1", [
@@ -208,7 +230,7 @@ export async function deleteAccount(
     ]);
     await client.query("DELETE FROM users WHERE id = $1", [userId]);
     await client.query("COMMIT");
-    return true;
+    return "deleted";
   } catch (error) {
     await client.query("ROLLBACK");
     throw error;

@@ -30,6 +30,7 @@ export type PublicUser = {
   aboutMe: string;
   customBehavior: string;
   isAdmin: boolean;
+  isOwner: boolean;
 };
 export type Chat = { id: number; title: string; createdAt: string };
 export type SavedMessage = {
@@ -56,6 +57,7 @@ export type UserRow = {
   about_me?: string;
   custom_behavior?: string;
   is_admin?: boolean;
+  is_owner?: boolean;
 };
 
 export type SessionRow = UserRow;

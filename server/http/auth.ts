@@ -178,9 +178,13 @@ export async function handleAuthRequest(
       sendError(response, 400, "CURRENT_PASSWORD_REQUIRED", "Enter your current password.");
       return true;
     }
-    const deleted = await deleteAccount(user.id, currentPassword);
-    if (!deleted) {
+    const result = await deleteAccount(user.id, currentPassword);
+    if (result === "invalid_password") {
       sendError(response, 401, "INVALID_CURRENT_PASSWORD", "Current password is incorrect.");
+      return true;
+    }
+    if (result === "owner_protected") {
+      sendError(response, 409, "OWNER_CANNOT_BE_DELETED", "The owner account cannot be deleted.");
       return true;
     }
     invalidateUserCache(user.id);

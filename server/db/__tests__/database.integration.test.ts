@@ -151,8 +151,13 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
     const result = await pool!.query(
       "SELECT name FROM migrations ORDER BY name",
     );
-    expect(result.rows).toHaveLength(7);
-    expect(result.rows.at(-1)?.name).toBe("007_memory_source_text.sql");
+    expect(result.rows).toHaveLength(8);
+    expect(result.rows.at(-1)?.name).toBe("008_user_owner.sql");
+    const owner = await pool!.query(
+      "SELECT user_id FROM user_admins WHERE is_owner",
+    );
+    const users = await pool!.query("SELECT COUNT(*)::int AS count FROM users");
+    expect(owner.rows).toHaveLength(users.rows[0].count > 0 ? 1 : 0);
   });
 
   it("migrates from an older 001-only schema", async () => {
@@ -184,7 +189,7 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
         "SELECT name FROM migrations ORDER BY name",
       );
       expect(result.rows.map((row) => row.name)).toContain(
-        "007_memory_source_text.sql",
+        "008_user_owner.sql",
       );
     } finally {
       await oldPool.end();
@@ -223,11 +228,28 @@ describe.skipIf(!dockerAvailable)("Database integration", () => {
 
   it("persists chats and messages", async () => {
     if (!dockerAvailable) return;
-    const userResult = await pool!.query(
-      `INSERT INTO users (username, password_hash)
-       VALUES ('chat-user', 'hash') RETURNING id`,
-    );
-    persistedUserId = Number(userResult.rows[0].id);
+    const client = await pool!.connect();
+    try {
+      await client.query("BEGIN");
+      const userResult = await client.query(
+        `INSERT INTO users (username, password_hash)
+         VALUES ('chat-user', 'hash') RETURNING id`,
+      );
+      persistedUserId = Number(userResult.rows[0].id);
+      const owner = await client.query(
+        "SELECT 1 FROM user_admins WHERE is_owner",
+      );
+      await client.query(
+        "INSERT INTO user_admins (user_id, is_owner) VALUES ($1, $2)",
+        [persistedUserId, owner.rowCount === 0],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
     const chatResult = await pool!.query(
       `INSERT INTO chats (user_id, title)
        VALUES ($1, 'Persistence test') RETURNING id`,

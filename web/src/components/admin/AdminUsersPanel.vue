@@ -8,19 +8,29 @@ import { useOllamaStore } from "@/stores/ollama";
 defineProps<{ totalUsers: number }>();
 
 type UserPage = {
-  users: { id: string; username: string; createdAt: string; isAdmin: boolean }[];
+  users: {
+    id: string;
+    username: string;
+    createdAt: string;
+    isAdmin: boolean;
+    isOwner: boolean;
+  }[];
   nextCursor: string | null;
 };
 
+type ManagedRole = "user" | "admin" | "owner";
+
 const store = useOllamaStore();
 const { t } = useI18n();
-const { token } = storeToRefs(store);
+const { token, user } = storeToRefs(store);
 const api = createApiClient(() => token.value);
 const users = ref<UserPage["users"]>([]);
 const cursor = ref<string | null>(null);
 const hasMore = ref(true);
 const loading = ref(false);
 const error = ref("");
+const roleError = ref("");
+const updatingUserId = ref<string | null>(null);
 const usersList = ref<HTMLElement | null>(null);
 
 async function loadMore() {
@@ -53,6 +63,66 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }
 
+function accountRole(account: UserPage["users"][number]): ManagedRole {
+  if (account.isOwner) return "owner";
+  return account.isAdmin ? "admin" : "user";
+}
+
+async function changeRole(account: UserPage["users"][number], event: Event) {
+  const select = event.currentTarget;
+  if (!(select instanceof HTMLSelectElement)) return;
+  const selectedRole = select.value;
+  if (
+    selectedRole !== "user" &&
+    selectedRole !== "admin" &&
+    selectedRole !== "owner"
+  ) {
+    select.value = accountRole(account);
+    return;
+  }
+  const role: ManagedRole = selectedRole;
+  if (role === "owner" && !window.confirm(t("admin.users.transferConfirm", {
+    username: account.username,
+  }))) {
+    select.value = accountRole(account);
+    return;
+  }
+
+  updatingUserId.value = account.id;
+  roleError.value = "";
+  try {
+    await api.request<{ updated: boolean }>(`/api/admin/users/${encodeURIComponent(account.id)}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    });
+    account.isAdmin = role !== "user";
+    account.isOwner = role === "owner";
+    const signedInUser = user.value;
+
+    if (role === "owner" && signedInUser) {
+      const previousOwner = users.value.find(
+        (entry) => entry.id === String(signedInUser.id),
+      );
+      if (previousOwner && previousOwner.id !== account.id) {
+        previousOwner.isAdmin = true;
+        previousOwner.isOwner = false;
+      }
+      signedInUser.isAdmin = true;
+      signedInUser.isOwner = false;
+    }
+    if (signedInUser && String(signedInUser.id) === account.id) {
+      signedInUser.isAdmin = role !== "user";
+      signedInUser.isOwner = role === "owner";
+    }
+  } catch (requestError) {
+    roleError.value =
+      requestError instanceof Error ? requestError.message : t("admin.users.couldNotUpdate");
+    select.value = accountRole(account);
+  } finally {
+    updatingUserId.value = null;
+  }
+}
+
 onMounted(() => void loadMore());
 </script>
 
@@ -68,6 +138,14 @@ onMounted(() => void loadMore());
         </p>
       </div>
     </div>
+
+    <p
+      v-if="roleError"
+      role="alert"
+      class="mt-3 rounded-lg border border-[#e7b6a4] bg-[#f9e4dc] px-3 py-2 text-sm text-[#853c2a]"
+    >
+      {{ roleError }}
+    </p>
 
     <div
       ref="usersList"
@@ -95,15 +173,19 @@ onMounted(() => void loadMore());
               {{ formatDate(account.createdAt) }}
             </td>
             <td class="px-4 py-3">
-              <span
-                v-if="account.isAdmin"
-                class="rounded-full bg-[var(--theme-accent)]/10 px-2.5 py-1 text-xs font-semibold text-[var(--theme-accent)]"
+              <select
+                :value="accountRole(account)"
+                :aria-label="$t('admin.users.roleFor', { username: account.username })"
+                :disabled="account.isOwner || updatingUserId !== null || (accountRole(account) === 'owner' && !user?.isOwner)"
+                class="max-w-full rounded-md border border-[var(--theme-border)] bg-[var(--theme-surface)] px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-70"
+                @change="changeRole(account, $event)"
               >
-                {{ $t("admin.users.admin") }}
-              </span>
-              <span v-else class="text-xs text-[var(--theme-muted)]">{{
-                $t("admin.users.user")
-              }}</span>
+                <option value="user">{{ $t("admin.users.userRole") }}</option>
+                <option value="admin">{{ $t("admin.users.admin") }}</option>
+                <option v-if="user?.isOwner || account.isOwner" value="owner">
+                  {{ $t("admin.users.owner") }}
+                </option>
+              </select>
             </td>
           </tr>
           <tr v-if="users.length === 0 && !loading && !error">
