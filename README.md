@@ -22,7 +22,7 @@ Amadeus/
 ├── models/                  # Local AI models
 ├── output/                  # Generated output
 │
-├── server/                  # Backend (Node.js + TypeScript)
+├── server/                   # Backend (Node.js + TypeScript)
 │   ├── classes/              # Shared classes
 │   ├── db/                   # Database layer
 │   │   └── migrations/       # SQL schema migrations
@@ -46,6 +46,7 @@ Amadeus/
 │       │   ├── chat/         # Chat interface components
 │       │   └── common/       # Shared components
 │       ├── composables/      # Reusable Vue composition logic
+│       ├── locales/          # Localization
 │       ├── router/           # Application routing
 │       ├── services/         # API and frontend services
 │       ├── stores/           # Pinia state management
