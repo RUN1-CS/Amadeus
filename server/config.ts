@@ -61,8 +61,40 @@ export const logCleanupIntervalMs = Number(
 // Database backups
 export const databaseBackupsEnabled =
   process.env.DATABASE_BACKUPS_ENABLED !== "false";
+const configuredDatabaseBackupStorage =
+  process.env.DATABASE_BACKUP_STORAGE ?? "local";
+if (
+  configuredDatabaseBackupStorage !== "local" &&
+  configuredDatabaseBackupStorage !== "sftp"
+) {
+  throw new Error("DATABASE_BACKUP_STORAGE must be either local or sftp.");
+}
+export const databaseBackupStorage = configuredDatabaseBackupStorage;
 export const databaseBackupDirectory =
   process.env.DATABASE_BACKUP_DIRECTORY ?? "/backups";
+export const databaseBackupSftpHost =
+  process.env.DATABASE_BACKUP_SFTP_HOST ?? "";
+const configuredDatabaseBackupSftpPort = Number(
+  process.env.DATABASE_BACKUP_SFTP_PORT ?? 22,
+);
+export const databaseBackupSftpPort =
+  Number.isInteger(configuredDatabaseBackupSftpPort) &&
+  configuredDatabaseBackupSftpPort > 0 &&
+  configuredDatabaseBackupSftpPort <= 65535
+    ? configuredDatabaseBackupSftpPort
+    : 22;
+export const databaseBackupSftpUsername =
+  process.env.DATABASE_BACKUP_SFTP_USERNAME ?? "";
+export const databaseBackupSftpPassword =
+  process.env.DATABASE_BACKUP_SFTP_PASSWORD ?? "";
+export const databaseBackupSftpPrivateKey =
+  process.env.DATABASE_BACKUP_SFTP_PRIVATE_KEY?.replaceAll("\\n", "\n") ?? "";
+export const databaseBackupSftpPassphrase =
+  process.env.DATABASE_BACKUP_SFTP_PASSPHRASE ?? "";
+export const databaseBackupSftpHostFingerprint =
+  process.env.DATABASE_BACKUP_SFTP_HOST_FINGERPRINT ?? "";
+export const databaseBackupSftpDirectory =
+  process.env.DATABASE_BACKUP_SFTP_DIRECTORY ?? "/backups";
 export const pgDumpPath = process.env.PG_DUMP_PATH ?? "pg_dump";
 export const pgRestorePath = process.env.PG_RESTORE_PATH ?? "pg_restore";
 const defaultBackupRetentionDays = 30;
