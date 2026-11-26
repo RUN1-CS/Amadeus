@@ -43,6 +43,29 @@ function run(command: string, args: string[], cwd: string): Promise<void> {
   });
 }
 
+function runCapture(
+  command: string,
+  args: string[],
+  cwd: string,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.setEncoding("utf8").on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.setEncoding("utf8").on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (code) => resolve({ code, stdout, stderr }));
+  });
+}
+
 async function verifyPackageIntegrity(
   directory: string,
   config: McpServerConfig,
@@ -62,10 +85,7 @@ async function verifyPackageIntegrity(
   }
 }
 
-async function isPackageInstalled(
-  directory: string,
-  config: McpServerConfig,
-) {
+async function isPackageInstalled(directory: string, config: McpServerConfig) {
   try {
     const lock = JSON.parse(
       await readFile(join(directory, "package-lock.json"), "utf8"),
@@ -94,6 +114,7 @@ async function installPackage(serverName: string, config: McpServerConfig) {
   await mkdir(getMcpInstallRoot(), { recursive: true, mode: 0o700 });
   const directory = getMcpServerDirectory(serverName);
   if (await isPackageInstalled(directory, config)) {
+    await auditPackage(serverName, directory);
     return directory;
   }
   await run(
@@ -102,6 +123,7 @@ async function installPackage(serverName: string, config: McpServerConfig) {
       "install",
       "--prefix",
       directory,
+      "--package-lock-only",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
@@ -110,8 +132,73 @@ async function installPackage(serverName: string, config: McpServerConfig) {
     ],
     getMcpInstallRoot(),
   );
+  await run(
+    "npm",
+    [
+      "ci",
+      "--prefix",
+      directory,
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      `--registry=${npmRegistry}`,
+    ],
+    getMcpInstallRoot(),
+  );
   await verifyPackageIntegrity(directory, config);
+  await auditPackage(serverName, directory);
   return directory;
+}
+
+async function auditPackage(serverName: string, directory: string) {
+  const result = await runCapture(
+    "npm",
+    ["audit", "--prefix", directory, "--json", `--registry=${npmRegistry}`],
+    getMcpInstallRoot(),
+  );
+
+  let audit: {
+    metadata?: {
+      vulnerabilities?: {
+        info?: number;
+        low?: number;
+        moderate?: number;
+        high?: number;
+        critical?: number;
+        total?: number;
+      };
+    };
+  };
+  try {
+    audit = JSON.parse(result.stdout) as typeof audit;
+  } catch {
+    logger.warn(
+      {
+        event: "ai.tool_package_audit_unavailable",
+        serverName,
+        exitCode: result.code,
+      },
+      "Could not read npm audit results for the configured MCP package",
+    );
+    return;
+  }
+
+  const vulnerabilities = audit.metadata?.vulnerabilities;
+  if (vulnerabilities && (vulnerabilities.total ?? 0) > 0) {
+    logger.warn(
+      { event: "ai.tool_package_vulnerabilities", serverName, vulnerabilities },
+      "Vulnerabilities found in the configured MCP package dependencies",
+    );
+  } else if (result.code !== 0 || !vulnerabilities) {
+    logger.warn(
+      {
+        event: "ai.tool_package_audit_unavailable",
+        serverName,
+        exitCode: result.code,
+      },
+      "npm audit did not return vulnerability results for the configured MCP package",
+    );
+  }
 }
 
 async function installBrowserEngines(
@@ -183,7 +270,9 @@ if (
         event: "ai.tool_install_failed",
         errorType: error instanceof Error ? error.name : "Unknown",
       },
-      error instanceof Error ? error.message : "MCP package installation failed",
+      error instanceof Error
+        ? error.message
+        : "MCP package installation failed",
     );
     process.exitCode = 1;
   });
