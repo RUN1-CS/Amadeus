@@ -16,7 +16,11 @@ import {
 import { logger } from "../../logger.js";
 import type { McpTool, ToolContent, ToolExecution } from "../../types.js";
 import { ollama } from "../client.js";
-import { getToolConfiguration, type McpServerConfig } from "./tool-config.js";
+import {
+  getMcpServerDirectory,
+  getToolConfiguration,
+  type McpServerConfig,
+} from "./tool-config.js";
 import type { BuiltChatRequest } from "../request.js";
 
 type ChunkHandler = (chunk: { content?: string; thinking?: string }) => void;
@@ -33,12 +37,16 @@ const toolRoutes = new Map<string, ToolRoute>();
 function getClient(serverName: string, config: McpServerConfig) {
   let clientPromise = clients.get(serverName);
   if (!clientPromise) {
+    const packageDirectory = getMcpServerDirectory(serverName);
     const client = new Client({ name: "amadeus-chat", version: "1.0.0" });
     clientPromise = client
       .connect(
         new StdioClientTransport({
           command: config.command,
-          args: config.args,
+          args: config.args.map((arg) =>
+            arg.replaceAll("{package_dir}", packageDirectory),
+          ),
+          cwd: packageDirectory,
           stderr: "inherit",
         }),
       )

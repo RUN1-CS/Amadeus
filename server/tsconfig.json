@@ -10,6 +10,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["*.ts", "db/**/*.ts"],
+  "include": ["*.ts", "ai/**/*.ts", "db/**/*.ts"],
   "exclude": ["db/**/*.test.ts"]
 }

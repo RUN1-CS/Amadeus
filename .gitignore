@@ -14,6 +14,7 @@ debug/
 .env.*
 !.env.example
 tools.yml
+.mcp-tools/
 
 # Logs
 *.log

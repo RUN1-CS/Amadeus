@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 RUN1-CS
 
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { parse } from "yaml";
 
 const mocks = vi.hoisted(() => ({
   listTools: vi.fn(),
@@ -40,6 +41,7 @@ import {
   chatWithTools,
   getConfiguredTools,
 } from "../ai/tools/tool-loop.js";
+import { validateToolConfiguration } from "../ai/tools/tool-config.js";
 
 let temporaryDirectory: string | undefined;
 let originalConfigPath: string | undefined;
@@ -57,6 +59,19 @@ afterEach(async () => {
 });
 
 describe("configured MCP tool loop", () => {
+  it("accepts the checked-in declarative package example", async () => {
+    const example = await readFile("ai/tools/tools.example.yml", "utf8");
+    const configuration = validateToolConfiguration(parse(example));
+
+    expect(configuration.mcp_servers.playwright.package).toEqual({
+      manager: "npm",
+      name: "@playwright/mcp",
+      version: "0.0.86",
+      integrity:
+        "sha512-4SL9OSINmik3+EObCYJIxH8BkhcqqGU6CM8XIgztW015iBVR9WR6Q0xF180Ery+xuEVyyK5r6nC2bOg3zjgCoA==",
+    });
+  });
+
   it("discovers and executes configured tools with YAML behavior", async () => {
     temporaryDirectory = await mkdtemp(join(tmpdir(), "amadeus-tools-"));
     originalConfigPath = process.env.TOOLS_CONFIG_PATH;
@@ -68,8 +83,14 @@ describe("configured MCP tool loop", () => {
         "mcp_servers:",
         "  records:",
         "    enabled: true",
+        "    package:",
+        "      manager: npm",
+        "      name: '@example/mcp-records'",
+        "      version: '1.2.3'",
+        "      integrity: 'sha512-4SL9OSINmik3+EObCYJIxH8BkhcqqGU6CM8XIgztW015iBVR9WR6Q0xF180Ery+xuEVyyK5r6nC2bOg3zjgCoA=='",
         "    command: record-mcp",
         "    args: []",
+        "    browser_engines: []",
         "    allowed_tools:",
         "      - open_page",
         "      - lookup_record",
@@ -154,6 +175,11 @@ describe("configured MCP tool loop", () => {
     await chatWithTools(request as never);
 
     expect(mocks.connect).toHaveBeenCalledTimes(1);
+    expect(mocks.connect.mock.calls[0][0].options).toMatchObject({
+      command: "record-mcp",
+      args: [],
+      cwd: expect.stringContaining(".mcp-tools/records"),
+    });
     expect(mocks.callTool).toHaveBeenNthCalledWith(1, {
       name: "open_page",
       arguments: { url: "https://example.com" },
@@ -163,5 +189,33 @@ describe("configured MCP tool loop", () => {
       arguments: {},
     });
     expect(mocks.chat.mock.calls[2][0]).not.toHaveProperty("tools");
+  });
+
+  it("rejects unpinned package versions and unsupported managers", () => {
+    const config = {
+      mcp_servers: {
+        records: {
+          enabled: true,
+          package: {
+            manager: "npm",
+            name: "@example/mcp-records",
+            version: "latest",
+            integrity:
+              "sha512-4SL9OSINmik3+EObCYJIxH8BkhcqqGU6CM8XIgztW015iBVR9WR6Q0xF180Ery+xuEVyyK5r6nC2bOg3zjgCoA==",
+          },
+          command: "node",
+          args: [],
+        },
+      },
+    };
+
+    expect(() => validateToolConfiguration(config)).toThrow(
+      "Invalid MCP server configuration: records",
+    );
+    config.mcp_servers.records.package.version = "1.2.3";
+    config.mcp_servers.records.package.manager = "shell";
+    expect(() => validateToolConfiguration(config)).toThrow(
+      "Invalid MCP server configuration: records",
+    );
   });
 });

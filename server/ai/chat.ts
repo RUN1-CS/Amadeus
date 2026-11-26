@@ -2,4 +2,4 @@
 // Copyright (C) 2026 RUN1-CS
 
 // Preserve the existing import path; tool-call orchestration lives in tool-loop.ts.
-export { chatWithTools } from "./tool-loop.js";
+export { chatWithTools } from "./tools/tool-loop.js";

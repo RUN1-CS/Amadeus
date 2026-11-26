@@ -31,8 +31,6 @@ RUN apt-get update \
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-RUN npx playwright install --with-deps firefox
-
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/db/migrations ./dist/db/migrations
 COPY --from=build /app/ai/tools/tools.example.yml ./ai/tools/tools.example.yml

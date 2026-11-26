@@ -5,14 +5,15 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch index.ts",
-    "start": "node dist/index.js",
+    "dev": "npm run tools:install:dev && tsx watch index.ts",
+    "start": "node dist/ai/tools/install.js && node dist/index.js",
+    "tools:install": "node dist/ai/tools/install.js",
+    "tools:install:dev": "tsx ai/tools/install.ts",
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "@playwright/mcp": "^0.0.86",
     "busboy": "^1.6.0",
     "ollama": "^0.6.4",
     "pdf-parse": "^2.4.5",

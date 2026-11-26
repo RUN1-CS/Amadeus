@@ -2,9 +2,16 @@
 mcp_servers:
   playwright:
     enabled: true
+    package:
+      manager: npm
+      name: "@playwright/mcp"
+      version: "0.0.86"
+      integrity: "sha512-4SL9OSINmik3+EObCYJIxH8BkhcqqGU6CM8XIgztW015iBVR9WR6Q0xF180Ery+xuEVyyK5r6nC2bOg3zjgCoA=="
+    browser_engines:
+      - firefox
     command: node
     args:
-      - node_modules/@playwright/mcp/cli.js
+      - "{package_dir}/node_modules/@playwright/mcp/cli.js"
       - --browser=firefox
       - --headless
     # null exposes every discovered tool; a list restricts tools.
