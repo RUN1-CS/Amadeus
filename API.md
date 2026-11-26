@@ -222,26 +222,39 @@ ID rather than querying the encrypted `users.username` column. The public
 
 ```http
 GET /api/admin/backups
-POST /api/admin/backups
+POST /api/admin/backups?action=export
+POST /api/admin/backups?action=backup
 POST /api/admin/backups/restore
+POST /api/admin/backups/rollback
 Authorization: Bearer <session-token>
 ```
 
 The status route reports whether backup operations are enabled and the maximum
-restore upload size. `POST /api/admin/backups` runs `pg_dump` in custom format
-and returns the dump as a download; a copy is retained in the configured backup
-directory. Restore accepts a custom-format dump as the raw request body with
-`Content-Type: application/octet-stream`. It runs `pg_restore` with cleanup
-inside a single transaction, so a failed restore is rolled back. Restoring
-replaces the current database contents.
+restore upload size. `POST /api/admin/backups?action=export` creates a
+PostgreSQL custom-format dump and returns it as a download without saving it to
+the online backup destination. `POST /api/admin/backups?action=backup` saves a
+backup to the configured destination without downloading it. The import route
+accepts a custom-format dump as the raw request body with
+`Content-Type: application/octet-stream`. The rollback route restores the most
+recent saved online backup. Both restore operations run `pg_restore` with
+cleanup inside a single transaction, so a failed restore is rolled back.
+Restoring replaces the current database contents.
 
 The routes require administrator membership. Backup operations and their
-settings are configured with `DATABASE_BACKUPS_ENABLED`,
-`DATABASE_BACKUP_DIRECTORY`, `DATABASE_BACKUP_RETENTION_DAYS`, `PG_DUMP_PATH`, `PG_RESTORE_PATH`,
-`DATABASE_BACKUP_MAX_UPLOAD_BYTES`, and `DATABASE_BACKUP_TIMEOUT_MS` in
-`.env`. Old generated dumps are removed after the configured retention period;
-set retention days to `0` to keep them indefinitely. The server image includes
-PostgreSQL 17 client tools by default.
+settings are configured in `.env`. `DATABASE_BACKUP_STORAGE` selects `local`
+(the default) or `sftp`. Local backups are written to
+`DATABASE_BACKUP_DIRECTORY`. SFTP backups use the host, port, username, and
+password or private key configured with `DATABASE_BACKUP_SFTP_*`; the SFTP
+server's SHA-256 host-key fingerprint is required and verified. SFTP backups
+are written to `DATABASE_BACKUP_SFTP_DIRECTORY`. Exported backups are not
+retained on either destination. Retention applies to saved online backups; set
+`DATABASE_BACKUP_RETENTION_DAYS` to `0` to keep dumps indefinitely.
+
+Other settings are `DATABASE_BACKUPS_ENABLED`, `DATABASE_BACKUP_DIRECTORY`,
+`PG_DUMP_PATH`, `PG_RESTORE_PATH`, `DATABASE_BACKUP_MAX_UPLOAD_BYTES`, and
+`DATABASE_BACKUP_TIMEOUT_MS`. Restore accepts a custom-format dump as the raw
+request body, independently of the configured storage destination. The server
+image includes PostgreSQL 17 client tools by default.
 
 ### User-data encryption and account deletion
 

@@ -8,6 +8,7 @@ import { useOllamaStore } from "@/stores/ollama";
 type BackupSettings = {
   enabled: boolean;
   maxUploadBytes: number;
+  storage: "local" | "sftp";
 };
 
 const store = useOllamaStore();
@@ -31,12 +32,12 @@ async function loadSettings() {
   }
 }
 
-async function downloadBackup() {
+async function exportBackup() {
   loading.value = true;
   error.value = "";
   message.value = "";
   try {
-    const response = await api.requestResponse("/api/admin/backups", {
+    const response = await api.requestResponse("/api/admin/backups?action=export", {
       method: "POST",
     });
     const blob = await response.blob();
@@ -49,7 +50,24 @@ async function downloadBackup() {
     link.download = filename;
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
-    message.value = t("admin.backups.created");
+    message.value = t("admin.backups.exported");
+  } catch (requestError) {
+    error.value =
+      requestError instanceof Error ? requestError.message : t("admin.backups.couldNotCreate");
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function createOnlineBackup() {
+  loading.value = true;
+  error.value = "";
+  message.value = "";
+  try {
+    await api.request<{ backedUp: boolean }>("/api/admin/backups?action=backup", {
+      method: "POST",
+    });
+    message.value = t("admin.backups.backedUp");
   } catch (requestError) {
     error.value =
       requestError instanceof Error ? requestError.message : t("admin.backups.couldNotCreate");
@@ -64,7 +82,7 @@ function selectFile(event: Event) {
   message.value = "";
 }
 
-async function restoreBackup() {
+async function importBackup() {
   const file = selectedFile.value;
   if (!file || loading.value) return;
   if (!window.confirm(t("admin.backups.restoreConfirmation", { filename: file.name }))) {
@@ -81,7 +99,28 @@ async function restoreBackup() {
     });
     selectedFile.value = null;
     if (fileInput.value) fileInput.value.value = "";
-    message.value = t("admin.backups.restored");
+    message.value = t("admin.backups.imported");
+  } catch (requestError) {
+    error.value =
+      requestError instanceof Error ? requestError.message : t("admin.backups.couldNotRestore");
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function rollbackBackup() {
+  if (loading.value || !window.confirm(t("admin.backups.rollbackConfirmation"))) {
+    return;
+  }
+
+  loading.value = true;
+  error.value = "";
+  message.value = "";
+  try {
+    await api.request<{ rolledBack: boolean }>("/api/admin/backups/rollback", {
+      method: "POST",
+    });
+    message.value = t("admin.backups.rolledBack");
   } catch (requestError) {
     error.value =
       requestError instanceof Error ? requestError.message : t("admin.backups.couldNotRestore");
@@ -111,6 +150,14 @@ onMounted(() => void loadSettings());
       <p class="mt-1 text-sm text-[var(--theme-muted)]">
         {{ $t("admin.backups.description") }}
       </p>
+      <p v-if="settings" class="mt-2 text-sm text-[var(--theme-muted)]">
+        <strong>{{ $t("admin.backups.storage") }}:</strong>
+        {{
+          settings.storage === "sftp"
+            ? $t("admin.backups.sftpStorage")
+            : $t("admin.backups.localStorage")
+        }}
+      </p>
     </div>
 
     <p
@@ -138,13 +185,22 @@ onMounted(() => void loadSettings());
         <p class="mt-1 text-sm text-[var(--theme-muted)]">
           {{ $t("admin.backups.createDescription") }}
         </p>
-        <button
-          class="mt-4 rounded-lg bg-[var(--theme-accent)] px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
-          :disabled="loading"
-          @click="downloadBackup"
-        >
-          {{ loading ? $t("admin.backups.working") : $t("admin.backups.create") }}
-        </button>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button
+            class="rounded-lg bg-[var(--theme-accent)] px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+            :disabled="loading"
+            @click="exportBackup"
+          >
+            {{ loading ? $t("admin.backups.working") : $t("admin.backups.export") }}
+          </button>
+          <button
+            class="rounded-lg border border-[var(--theme-border)] px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
+            :disabled="loading"
+            @click="createOnlineBackup"
+          >
+            {{ loading ? $t("admin.backups.working") : $t("admin.backups.backup") }}
+          </button>
+        </div>
       </div>
 
       <div class="rounded-lg border border-[var(--theme-border)] p-4">
@@ -167,13 +223,22 @@ onMounted(() => void loadSettings());
         <p v-if="selectedFile" class="mt-2 break-all text-xs text-[var(--theme-muted)]">
           {{ selectedFile.name }} · {{ formatBytes(selectedFile.size) }}
         </p>
-        <button
-          class="mt-4 rounded-lg border border-[#e7b6a4] px-4 py-2 text-sm font-semibold text-[#853c2a] transition hover:bg-[#f9e4dc] disabled:opacity-50"
-          :disabled="loading || !selectedFile"
-          @click="restoreBackup"
-        >
-          {{ loading ? $t("admin.backups.working") : $t("admin.backups.restore") }}
-        </button>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button
+            class="rounded-lg border border-[#e7b6a4] px-4 py-2 text-sm font-semibold text-[#853c2a] transition hover:bg-[#f9e4dc] disabled:opacity-50"
+            :disabled="loading || !selectedFile"
+            @click="importBackup"
+          >
+            {{ loading ? $t("admin.backups.working") : $t("admin.backups.import") }}
+          </button>
+          <button
+            class="rounded-lg border border-[#e7b6a4] px-4 py-2 text-sm font-semibold text-[#853c2a] transition hover:bg-[#f9e4dc] disabled:opacity-50"
+            :disabled="loading"
+            @click="rollbackBackup"
+          >
+            {{ loading ? $t("admin.backups.working") : $t("admin.backups.rollback") }}
+          </button>
+        </div>
       </div>
     </div>
   </section>

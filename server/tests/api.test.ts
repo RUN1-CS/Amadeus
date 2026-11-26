@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => ({
   getAiModelAccess: vi.fn(),
   setAiModelEnabled: vi.fn(),
   reconcileUsersAfterRestore: vi.fn(),
+  createDatabaseBackup: vi.fn(),
+  restoreLatestDatabaseBackup: vi.fn(),
 }));
 
 vi.mock("../db.js", () => mocks);
@@ -59,8 +61,9 @@ vi.mock("../comfyui.js", () => ({
 }));
 
 vi.mock("../backups.js", () => ({
-  createDatabaseBackup: vi.fn(),
+  createDatabaseBackup: mocks.createDatabaseBackup,
   createRestoreUploadPath: vi.fn(),
+  restoreLatestDatabaseBackup: mocks.restoreLatestDatabaseBackup,
   restoreDatabaseBackup: vi.fn(),
   streamBackup: vi.fn(),
 }));
@@ -323,6 +326,55 @@ describe("HTTP API", () => {
       expect(response.status).toBe(403);
       expect(body.localizationCode).toBe("ADMINISTRATOR_REQUIRED");
     }
+  });
+
+  it("reports the configured backup storage for administrators", async () => {
+    mocks.isAdmin.mockResolvedValue(true);
+
+    const { response, body } = await api("/api/admin/backups", {
+      headers: { Authorization: `Bearer ${"valid-token"}` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      enabled: true,
+      maxUploadBytes: expect.any(Number),
+      storage: expect.stringMatching(/^(local|sftp)$/),
+    });
+  });
+
+  it("allows administrators to roll back to the latest online backup", async () => {
+    mocks.isAdmin.mockResolvedValue(true);
+
+    const { response, body } = await api("/api/admin/backups/rollback", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${"valid-token"}` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ rolledBack: true });
+    expect(mocks.restoreLatestDatabaseBackup).toHaveBeenCalledOnce();
+    expect(mocks.reconcileUsersAfterRestore).toHaveBeenCalledOnce();
+    expect(mocks.clearUserCache).toHaveBeenCalledOnce();
+  });
+
+  it("creates an online backup without exporting it", async () => {
+    mocks.isAdmin.mockResolvedValue(true);
+    mocks.createDatabaseBackup.mockResolvedValue({
+      filePath: "/tmp/backup.dump",
+      filename: "amadeus-test.dump",
+      size: 12,
+      removeAfterResponse: false,
+    });
+
+    const { response, body } = await api("/api/admin/backups?action=backup", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${"valid-token"}` },
+    });
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ backedUp: true });
+    expect(mocks.createDatabaseBackup).toHaveBeenCalledWith({ persist: true });
   });
 
   it("allows administrators to request account role changes", async () => {
