@@ -5,8 +5,6 @@ import i18n from "@/i18n";
 import { createServerError, type ServerErrorPayload } from "@/services/serverErrors";
 import type { Memory, MemoryPayload } from "@/types/chat";
 
-const token = localStorage.getItem("amadeus_token");
-
 async function throwResponseError(response: Response, fallback: string) {
   if (!response.ok) {
     const payload = (await response.json()) as ServerErrorPayload;
@@ -14,30 +12,34 @@ async function throwResponseError(response: Response, fallback: string) {
   }
 }
 
+function authHeaders(includeJsonContentType = true) {
+  const headers = new Headers();
+  if (includeJsonContentType) headers.set("Content-Type", "application/json");
+  const token = localStorage.getItem("amadeus_token");
+  if (token) headers.set("Authorization", "Bearer " + token);
+  return headers;
+}
+
 export const useMemoryStore = defineStore("memory", () => {
   const memories = ref<Memory[]>([]);
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  // Fetch all memories for the user
   async function fetchMemories() {
     loading.value = true;
     error.value = null;
-    if (!token) {
+    if (!localStorage.getItem("amadeus_token")) {
       error.value = i18n.global.t("memory.userNotAuthenticated");
       loading.value = false;
       return;
     }
     try {
       const response = await fetch("/api/memories", {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: authHeaders(),
       });
       await throwResponseError(response, i18n.global.t("memory.fetchFailed"));
-      console.log("Fetched memories:", await response.clone());
-      memories.value = await response.json();
+      const body = (await response.json()) as { memories: Memory[] };
+      memories.value = body.memories;
     } catch (err) {
       error.value = err instanceof Error ? err.message : i18n.global.t("memory.fetchFailed");
     } finally {
@@ -45,21 +47,18 @@ export const useMemoryStore = defineStore("memory", () => {
     }
   }
 
-  // Create a new memory
   async function createMemory(payload: MemoryPayload) {
     loading.value = true;
     error.value = null;
     try {
       const response = await fetch("/api/memories", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: authHeaders(),
         body: JSON.stringify(payload),
       });
       await throwResponseError(response, i18n.global.t("memory.createFailed"));
-      const newMemory: Memory = await response.json();
+      const body = (await response.json()) as { memory: Memory };
+      const newMemory = body.memory;
       memories.value.unshift(newMemory);
       return newMemory;
     } catch (err) {
@@ -70,22 +69,19 @@ export const useMemoryStore = defineStore("memory", () => {
     }
   }
 
-  // Update an existing memory
   async function updateMemory(id: number, payload: Partial<MemoryPayload>) {
     loading.value = true;
     error.value = null;
     try {
       const response = await fetch(`/api/memories/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        method: "PATCH",
+        headers: authHeaders(),
         body: JSON.stringify(payload),
       });
       await throwResponseError(response, i18n.global.t("memory.updateFailed"));
-      const updated: Memory = await response.json();
-      const index = memories.value.findIndex((m) => m.id === id);
+      const body = (await response.json()) as { memory: Memory };
+      const updated = body.memory;
+      const index = memories.value.findIndex((memory) => memory.id === id);
       if (index !== -1) memories.value[index] = updated;
       return updated;
     } catch (err) {
@@ -96,19 +92,16 @@ export const useMemoryStore = defineStore("memory", () => {
     }
   }
 
-  // Delete a memory
   async function deleteMemory(id: number) {
     loading.value = true;
     error.value = null;
     try {
       const response = await fetch(`/api/memories/${id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: authHeaders(false),
       });
       await throwResponseError(response, i18n.global.t("memory.deleteRequestFailed"));
-      memories.value = memories.value.filter((m) => m.id !== id);
+      memories.value = memories.value.filter((memory) => memory.id !== id);
     } catch (err) {
       error.value =
         err instanceof Error ? err.message : i18n.global.t("memory.deleteRequestFailed");

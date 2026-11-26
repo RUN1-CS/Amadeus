@@ -20,6 +20,7 @@ const metadataJson = ref("{}");
 const searchFilter = ref("");
 const formError = ref("");
 const formSuccess = ref("");
+const expandedMemories = ref<Record<number, boolean>>({});
 
 onMounted(() => {
   memoryStore.fetchMemories();
@@ -96,6 +97,10 @@ async function handleDelete(id: number) {
   } catch (err) {
     formError.value = err instanceof Error ? err.message : t("memory.deleteFailed");
   }
+}
+
+function toggleMemoryExpanded(id: number) {
+  expandedMemories.value[id] = !expandedMemories.value[id];
 }
 </script>
 
@@ -225,7 +230,20 @@ async function handleDelete(id: number) {
               class="flex flex-col justify-between gap-4 py-4 sm:flex-row sm:items-start"
             >
               <div class="space-y-1">
-                <p class="text-sm font-medium">{{ memory.content }}</p>
+                <p
+                  class="text-sm font-medium"
+                  :class="{ 'line-clamp-1': !expandedMemories[memory.id] }"
+                >
+                  {{ memory.content }}
+                </p>
+                <button
+                  type="button"
+                  class="text-xs text-[var(--theme-accent)] hover:underline"
+                  :aria-expanded="Boolean(expandedMemories[memory.id])"
+                  @click="toggleMemoryExpanded(memory.id)"
+                >
+                  {{ expandedMemories[memory.id] ? $t("app.showLess") : $t("app.showFull") }}
+                </button>
                 <div class="flex flex-wrap items-center gap-2 text-xs text-[var(--theme-muted)]">
                   <span class="rounded bg-[#eeeae3] px-2 py-0.5 font-mono text-[10px]">{{
                     memory.source
