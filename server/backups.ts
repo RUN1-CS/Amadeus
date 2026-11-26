@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 import { execFile, spawn } from "node:child_process";
 import { createReadStream } from "node:fs";
 import {

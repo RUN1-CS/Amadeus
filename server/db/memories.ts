@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Memory records: encrypted CRUD. Similarity ranking lives in vector-search.ts.
 import {
   decryptJsonValue,

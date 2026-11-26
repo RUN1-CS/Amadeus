@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- Copyright (C) 2026 RUN1-CS
+
 CREATE TABLE IF NOT EXISTS server_logs (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     logged_at TIMESTAMPTZ NOT NULL,

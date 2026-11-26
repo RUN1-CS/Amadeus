@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- Copyright (C) 2026 RUN1-CS
+
 ALTER TABLE user_data_keys ADD COLUMN IF NOT EXISTS username_lookup TEXT;
 
 UPDATE user_data_keys

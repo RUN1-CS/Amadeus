@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Chat (conversation) rows: listing, creation, renaming, deletion, and ownership checks.
 import { decryptUserValue, encryptUserValue } from "../data-encryption.js";
 import type { Chat } from "../types.js";

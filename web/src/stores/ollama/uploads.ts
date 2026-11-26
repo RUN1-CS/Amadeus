@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // File uploads: send files to the server, and build the local attachment previews.
 import type { createApiClient } from "@/services/api";
 import type { ChatMessage } from "@/types/chat";

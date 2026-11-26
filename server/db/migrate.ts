@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Applies numbered *.sql migrations once, in lexical order.
 import fs from "node:fs";
 import path from "node:path";

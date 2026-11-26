@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Small fetch wrapper that adds JSON handling and bearer-token auth.
 import { createServerError, type ServerErrorPayload } from "@/services/serverErrors";
 

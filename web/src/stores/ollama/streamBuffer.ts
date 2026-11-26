@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Streamed chunks are buffered and applied once per frame instead of once per token.
 export function createChunkBuffer(apply: (content: string, thinking: string) => void) {
   let pendingContent = "";

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Similarity search over encrypted memory embeddings (decrypted and ranked in-process).
 import { decryptJsonValue, decryptUserValue } from "../data-encryption.js";
 import type { MemoryRow, SimilarMessage } from "../types.js";

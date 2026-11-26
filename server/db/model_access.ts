@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Per-model enable/disable switches for Ollama and ComfyUI models.
 import { AiModelType } from "../types.js";
 import { pool } from "./pool.js";

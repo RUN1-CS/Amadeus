@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Starts the Node server and opens the WebSocket after Ollama models are loaded.
 import { port } from "./config.js";
 import { loadModels } from "./ai.js";

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Admin-only queries: admin membership, aggregate stats, user listing, and server logs.
 import { decryptUserValue } from "../data-encryption.js";
 import { pool, requireUserDataKey } from "./pool.js";

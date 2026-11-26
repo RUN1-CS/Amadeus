@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Password hashing helpers. Pure functions with no database access.
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Theme model plus local storage helpers for custom UI colors.
 export type Theme = {
   accent: string;

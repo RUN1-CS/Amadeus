@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- Copyright (C) 2026 RUN1-CS
+
 -- Admin membership is explicit and is removed when its user is deleted.
 CREATE TABLE IF NOT EXISTS user_admins (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

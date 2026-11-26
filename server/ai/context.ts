@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Token budgeting: trims chat history so prompts fit the model's context window.
 import type { Message } from "ollama";
 

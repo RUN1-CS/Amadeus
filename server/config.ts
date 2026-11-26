@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Server
 export const port = Number(process.env.PORT ?? 8080);
 export const heartbeatMs = Number(process.env.HEARTBEAT_MS ?? 30_000);

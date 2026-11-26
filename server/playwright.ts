@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // MCP adapter that exposes Playwright browser tools to the model.
 import { resolve } from "node:path";
 

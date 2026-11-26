@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Startup, schema migration, log retention, and post-restore reconciliation.
 import migrate from "./migrate.js";
 import { getErrorType, logger, setDatabaseLogWriter } from "../logger.js";

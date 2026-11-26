@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Recalls remembered user messages that are relevant to the current prompt.
 import { maxMemoryContextLength, maxMemoryResults } from "../config.js";
 import { searchSimilarMessages } from "../db.js";

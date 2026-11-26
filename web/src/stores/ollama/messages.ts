@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Turning saved server messages into UI messages, plus the file-block format
 // that uploads are written in and parsed back out of.
 import type { ChatMessage, SavedMessage } from "@/types/chat";
