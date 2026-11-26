@@ -13,6 +13,7 @@ debug/
 .env
 .env.*
 !.env.example
+tools.yml
 
 # Logs
 *.log

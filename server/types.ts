@@ -66,7 +66,6 @@ export type UserRow = {
 export type SessionRow = UserRow;
 
 export type ToolContent = { type?: string; text?: string };
-export type ToolResult = { content?: ToolContent[]; isError?: boolean };
 export type ToolExecution = {
   ok: boolean;
   text: string;

@@ -3,12 +3,12 @@
 
 // Assembles the final chat payload for Ollama: model info, memory, prompt, tools.
 import type { ClientMessage } from "../protocol.js";
-import { getPlaywrightTools } from "../playwright.js";
 import type { SavedMessage } from "../types.js";
 import { fitMessages } from "./context.js";
 import { searchMessageMemory } from "./memory.js";
 import { getModelInfo } from "./models.js";
 import { buildSystemPrompt } from "./prompt.js";
+import { getConfiguredTools } from "./tools/tool-loop.js";
 
 // Assemble the final chat payload, memory prompt, and tool config for Ollama.
 export async function buildChatRequest(
@@ -28,7 +28,7 @@ export async function buildChatRequest(
     getModelInfo(model),
     searchMessageMemory(userId, prompt),
   ]);
-  const tools = toolsSupported ? await getPlaywrightTools() : undefined;
+  const tools = toolsSupported ? await getConfiguredTools() : undefined;
 
   const systemPrompt = buildSystemPrompt({
     userName,

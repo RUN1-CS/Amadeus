@@ -8,6 +8,6 @@ export { loadModels, getModels, releaseModelForImage } from "./ai/models.js";
 export { getMessageEmbedding } from "./ai/embeddings.js";
 export { buildChatRequest } from "./ai/request.js";
 export type { BuiltChatRequest } from "./ai/request.js";
-export { chatWithTools } from "./ai/chat.js";
+export { chatWithTools } from "./ai/tools/tool-loop.js";
 export { looksLikeImageRequest, decideImageGeneration } from "./ai/image.js";
 export { generateChatTitle } from "./ai/title.js";

@@ -72,6 +72,21 @@ Amadeus/
 
 ### Installation
 
+Create the ignored runtime tool configuration from its example before starting
+the server:
+
+```bash
+cp server/ai/tools/tools.example.yml server/ai/tools/tools.yml
+```
+
+The server loads `server/ai/tools/tools.yml` at startup; Docker Compose mounts it
+read-only into the server container. Restart the server after changing it.
+Configure MCP servers under `mcp_servers`; each enabled server defines its
+command, arguments, allowed tool names, and optional tool-loop behavior.
+Set `allowed_tools` to a list to restrict tools, or leave it `null` to expose
+all tools reported by that MCP server. The example uses Playwright MCP, while
+the tool loader and dispatcher work with any MCP server using stdio transport.
+
 Build and start the application with Docker Compose:
 
 ```bash
