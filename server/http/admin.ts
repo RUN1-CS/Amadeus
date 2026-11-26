@@ -16,10 +16,12 @@ import { getModels, loadModels } from "../ai.js";
 import {
   createDatabaseBackup,
   createRestoreUploadPath,
+  restoreLatestDatabaseBackup,
   restoreDatabaseBackup,
   streamBackup,
 } from "../backups.js";
 import {
+  databaseBackupStorage,
   databaseBackupMaxUploadBytes,
   databaseBackupsEnabled,
 } from "../config.js";
@@ -58,6 +60,7 @@ export async function handleAdminRequest(
     sendJson(response, 200, {
       enabled: databaseBackupsEnabled,
       maxUploadBytes: databaseBackupMaxUploadBytes,
+      storage: databaseBackupStorage,
     });
     return true;
   }
@@ -65,11 +68,37 @@ export async function handleAdminRequest(
   if (path === "/api/admin/backups" && request.method === "POST") {
     if (!(await requireAdmin(user.id, response))) return true;
     if (!databaseBackupsEnabled) {
-      sendError(response, 503, "BACKUPS_DISABLED", "Database backups are disabled.");
+      sendError(
+        response,
+        503,
+        "BACKUPS_DISABLED",
+        "Database backups are disabled.",
+      );
       return true;
     }
 
-    const backup = await createDatabaseBackup();
+    const action = url.searchParams.get("action") ?? "export";
+    if (action !== "export" && action !== "backup") {
+      sendError(
+        response,
+        400,
+        "INVALID_BACKUP_ACTION",
+        "Choose export or backup.",
+      );
+      return true;
+    }
+
+    const backup = await createDatabaseBackup({
+      persist: action === "backup",
+    });
+    if (action === "backup") {
+      if (backup.removeAfterResponse) {
+        await rm(backup.filePath, { force: true });
+      }
+      sendJson(response, 200, { backedUp: true });
+      return true;
+    }
+
     response.writeHead(200, {
       "Content-Type": "application/octet-stream",
       "Content-Disposition": `attachment; filename="${backup.filename}"`,
@@ -77,14 +106,44 @@ export async function handleAdminRequest(
       "Cache-Control": "no-store",
       ...corsHeaders,
     });
-    await pipeline(await streamBackup(backup.filePath), response);
+    try {
+      await pipeline(await streamBackup(backup.filePath), response);
+    } finally {
+      if (backup.removeAfterResponse) {
+        await rm(backup.filePath, { force: true });
+      }
+    }
+    return true;
+  }
+
+  if (path === "/api/admin/backups/rollback" && request.method === "POST") {
+    if (!(await requireAdmin(user.id, response))) return true;
+    if (!databaseBackupsEnabled) {
+      sendError(
+        response,
+        503,
+        "BACKUPS_DISABLED",
+        "Database backups are disabled.",
+      );
+      return true;
+    }
+
+    await restoreLatestDatabaseBackup();
+    await reconcileUsersAfterRestore();
+    clearUserCache();
+    sendJson(response, 200, { rolledBack: true });
     return true;
   }
 
   if (path === "/api/admin/backups/restore" && request.method === "POST") {
     if (!(await requireAdmin(user.id, response))) return true;
     if (!databaseBackupsEnabled) {
-      sendError(response, 503, "BACKUPS_DISABLED", "Database backups are disabled.");
+      sendError(
+        response,
+        503,
+        "BACKUPS_DISABLED",
+        "Database backups are disabled.",
+      );
       return true;
     }
     if (
@@ -166,7 +225,12 @@ export async function handleAdminRequest(
     if (!(await requireAdmin(user.id, response))) return true;
     const beforeId = url.searchParams.get("beforeId") ?? undefined;
     if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
-      sendError(response, 400, "INVALID_USER_CURSOR", "Invalid user pagination cursor.");
+      sendError(
+        response,
+        400,
+        "INVALID_USER_CURSOR",
+        "Invalid user pagination cursor.",
+      );
       return true;
     }
     sendJson(response, 200, await getAdminUsers(beforeId));
@@ -184,7 +248,11 @@ export async function handleAdminRequest(
       return true;
     }
     const body = await readJson(request);
-    if (body.role !== "user" && body.role !== "admin" && body.role !== "owner") {
+    if (
+      body.role !== "user" &&
+      body.role !== "admin" &&
+      body.role !== "owner"
+    ) {
       sendError(
         response,
         400,
@@ -197,9 +265,21 @@ export async function handleAdminRequest(
     const result = await setUserRole(user.id, roleMatch[1]!, body.role);
     if (!result.success) {
       const failures = {
-        not_admin: [403, "ADMINISTRATOR_REQUIRED", "Administrator access is required."],
-        owner_required: [403, "OWNER_REQUIRED", "Only the owner can assign the owner role."],
-        owner_protected: [409, "OWNER_PROTECTED", "The owner cannot be demoted."],
+        not_admin: [
+          403,
+          "ADMINISTRATOR_REQUIRED",
+          "Administrator access is required.",
+        ],
+        owner_required: [
+          403,
+          "OWNER_REQUIRED",
+          "Only the owner can assign the owner role.",
+        ],
+        owner_protected: [
+          409,
+          "OWNER_PROTECTED",
+          "The owner cannot be demoted.",
+        ],
         not_found: [404, "USER_NOT_FOUND", "User not found."],
       } as const;
       const [status, code, message] = failures[result.reason];
@@ -220,15 +300,30 @@ export async function handleAdminRequest(
     const beforeId = url.searchParams.get("beforeId") ?? undefined;
     const levels = ["trace", "debug", "info", "warn", "error", "fatal"];
     if (level && !levels.includes(level)) {
-      sendError(response, 400, "INVALID_LOG_LEVEL", "Invalid log level filter.");
+      sendError(
+        response,
+        400,
+        "INVALID_LOG_LEVEL",
+        "Invalid log level filter.",
+      );
       return true;
     }
     if (event && event.length > 120) {
-      sendError(response, 400, "LOG_EVENT_TOO_LONG", "Log event filter is too long.");
+      sendError(
+        response,
+        400,
+        "LOG_EVENT_TOO_LONG",
+        "Log event filter is too long.",
+      );
       return true;
     }
     if (beforeId !== undefined && !/^[1-9]\d*$/.test(beforeId)) {
-      sendError(response, 400, "INVALID_LOG_CURSOR", "Invalid log pagination cursor.");
+      sendError(
+        response,
+        400,
+        "INVALID_LOG_CURSOR",
+        "Invalid log pagination cursor.",
+      );
       return true;
     }
     sendJson(response, 200, await getServerLogs({ level, event, beforeId }));
@@ -254,9 +349,7 @@ export async function handleAdminRequest(
         comfyui: getComfyModels().error ? "AI_SERVICE_ERROR" : undefined,
       },
       errorLocalizationParams: {
-        ollama: getModels().error
-          ? { details: getModels().error }
-          : undefined,
+        ollama: getModels().error ? { details: getModels().error } : undefined,
         comfyui: getComfyModels().error
           ? { details: getComfyModels().error }
           : undefined,

@@ -10,8 +10,23 @@ import { handleAuthRequest } from "./http/auth.js";
 import { handleChatRequest } from "./http/chats.js";
 import { handleComfyRequest } from "./http/comfy.js";
 import { handleMemoryRequest } from "./http/memories.js";
-import { requireUser, sendError, sendJson, sendNoContent } from "./http/shared.js";
+import {
+  requireUser,
+  sendError,
+  sendJson,
+  sendNoContent,
+} from "./http/shared.js";
 import { HttpError } from "./classes/httpError.js";
+
+function getSafeErrorDiagnostic(error: unknown) {
+  return getErrorMessage(error)
+    .replace(/([a-z][a-z\d+.-]*:\/\/)[^/\s@]+@/gi, "$1[REDACTED]@")
+    .replace(
+      /\b(password|passwd|pwd|token)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s&,;]+)/gi,
+      "$1$2[REDACTED]",
+    )
+    .slice(0, 1_000);
+}
 
 async function handleRequest(
   request: IncomingMessage,
@@ -66,11 +81,22 @@ async function handleRequest(
       "code" in error &&
       error.code === "23505"
     ) {
-      sendError(response, 409, "USERNAME_TAKEN", "That username is already taken.");
+      sendError(
+        response,
+        409,
+        "USERNAME_TAKEN",
+        "That username is already taken.",
+      );
       return;
     }
     logger.error(
-      { event: "http.request_failed", errorType: getErrorType(error) },
+      {
+        event: "http.request_failed",
+        method: request.method,
+        path,
+        errorType: getErrorType(error),
+        errorMessage: getSafeErrorDiagnostic(error),
+      },
       "HTTP request failed",
     );
     const message =
