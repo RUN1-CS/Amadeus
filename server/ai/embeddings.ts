@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Vector embeddings for messages so related memories can be recalled.
 import { embeddingModel, keepAlive } from "../config.js";
 import { getErrorType, logger } from "../logger.js";

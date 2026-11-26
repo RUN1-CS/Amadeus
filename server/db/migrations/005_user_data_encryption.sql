@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- Copyright (C) 2026 RUN1-CS
+
 ALTER TABLE users ALTER COLUMN username TYPE TEXT;
 ALTER TABLE users ALTER COLUMN password_hash TYPE TEXT;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key;

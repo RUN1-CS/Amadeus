@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- Copyright (C) 2026 RUN1-CS
+
 -- Creates the Postgres schema for users, chats, messages, sessions, and vector memory.
 
 CREATE EXTENSION IF NOT EXISTS vector;

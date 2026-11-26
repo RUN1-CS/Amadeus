@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Assembles the final chat payload for Ollama: model info, memory, prompt, tools.
 import type { ClientMessage } from "../protocol.js";
 import { getPlaywrightTools } from "../playwright.js";

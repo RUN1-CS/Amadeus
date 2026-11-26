@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Connects the app to Ollama, manages memory context, and orchestrates tool-enabled chats.
 // This file only re-exports the public API; the implementation lives in ./ai/.
 export { ollama } from "./ai/client.js";

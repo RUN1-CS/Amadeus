@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Route map for login, registration, settings, and the main chat view.
 import { createRouter, createWebHistory } from "vue-router";
 import AuthView from "../views/AuthView.vue";

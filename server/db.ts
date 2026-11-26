@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Postgres access layer for users, chat sessions, messages, and vector-memory lookups.
 // This file only re-exports the public API; the implementation lives in ./db/*.
 export {

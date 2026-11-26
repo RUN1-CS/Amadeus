@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Decides whether a message is an image request and builds ComfyUI prompts.
 import { keepAlive } from "../config.js";
 import { getErrorType, logger } from "../logger.js";

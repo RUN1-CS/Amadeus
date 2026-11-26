@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Shared message contract for the client/server WebSocket protocol.
 export type ClientMessage = {
   type:

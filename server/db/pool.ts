@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Shared Postgres pool and per-user encryption key lookup used by every db module.
 import { Pool } from "pg";
 import { getUserDataKey } from "../data-encryption.js";

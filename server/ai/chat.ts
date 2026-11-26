@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Runs chat rounds against Ollama, including the browser tool-calling loop.
 import type { ChatResponse, Message, ToolCall } from "ollama";
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Pinia store for auth, chat state, socket streaming, and model selection.
 import { ref, watch } from "vue";
 import { defineStore } from "pinia";

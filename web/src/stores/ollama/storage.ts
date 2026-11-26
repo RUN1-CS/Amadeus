@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // localStorage keys and the persisted composer options.
 export const tokenStorageKey = "amadeus_token";
 export const sidebarStorageKey = "amadeus_sidebar";

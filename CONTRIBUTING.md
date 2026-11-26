@@ -132,7 +132,20 @@ GitHub Actions may run automated checks against submitted contributions.
 
 Passing automated checks does not guarantee acceptance.
 
-## 6. Questions and Discussions
+# 6. Copyright and Licensing
+
+By submitting a contribution to Amadeus, you agree that:
+
+1. Your contribution is your original work, or you have permission to submit it.
+2. You have the right to submit the contribution under the project's license.
+3. Your contribution will be distributed under GNU General Public License v3.0 or later (GPL-3.0-or-later).
+4. You retain copyright ownership of your original contributions unless otherwise agreed.
+
+Contributors must not submit code, assets, or other materials that they do not have the necessary rights to license.
+
+Unless explicitly agreed otherwise, contributions are accepted under the same license as the project.
+
+## 7. Questions and Discussions
 
 If you are unsure about an implementation, architectural decision, or contribution process, open a discussion or contact the maintainer before investing significant time.
 

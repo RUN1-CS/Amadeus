@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 import { createI18n } from "vue-i18n";
 import type { Language } from "@/types/chat.ts";
 

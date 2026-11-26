@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // WebSocket connection: auth handshake, send helper, and reconnect with backoff.
 
 // Keep below the server's WebSocket maxPayload (25 MiB) so a big image upload

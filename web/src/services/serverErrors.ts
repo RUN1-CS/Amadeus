@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 import i18n from "@/i18n";
 
 export type ServerErrorPayload = {

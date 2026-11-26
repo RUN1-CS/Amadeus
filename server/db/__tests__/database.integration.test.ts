@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, readFile, rm } from "node:fs/promises";

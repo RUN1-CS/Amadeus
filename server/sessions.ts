@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Short-lived in-memory cache in front of session lookups, shared by the HTTP and WebSocket layers.
 import { getUserBySession } from "./db.js";
 import { maxEntries, ttlMs } from "./config.js";

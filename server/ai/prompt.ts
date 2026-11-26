@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Builds the system prompt from the user's profile, persona, memory, and tools.
 
 type SystemPromptOptions = {

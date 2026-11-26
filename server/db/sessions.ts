@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Login sessions: opaque bearer tokens stored as SHA-256 hashes.
 import { createHash, randomBytes } from "node:crypto";
 import { decryptUserValue } from "../data-encryption.js";

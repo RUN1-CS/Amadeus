@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ollama = vi.hoisted(() => ({

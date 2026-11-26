@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Ollama model discovery: the cached model list, per-model context window and
 // tool support, and freeing VRAM before image generation.
 import { configuredContextWindow } from "../config.js";

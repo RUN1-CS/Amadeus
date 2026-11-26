@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- Copyright (C) 2026 RUN1-CS
+
 -- The owner is an administrator with exclusive ownership-transfer privileges.
 ALTER TABLE user_admins
     ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT FALSE;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // Generates short conversation titles.
 import { keepAlive } from "../config.js";
 import { ollama } from "./client.js";

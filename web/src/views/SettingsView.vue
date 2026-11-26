@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 RUN1-CS -->
+
 <!-- Settings page for profile data, theme colors, and account updates. -->
 <script setup lang="ts">
 import { ref } from "vue";

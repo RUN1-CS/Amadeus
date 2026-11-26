@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 import { ref, watch, type Ref } from "vue";
 
 import i18n from "@/i18n";

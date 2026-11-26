@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 RUN1-CS
+
 // WebSocket gateway for authenticate, model fetches, and streaming chat messages.
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 

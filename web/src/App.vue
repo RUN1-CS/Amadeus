@@ -1,3 +1,6 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 RUN1-CS -->
+
 <!-- Main chat shell: sidebar, composer, message rendering, and route-aware auth checks. -->
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, watchEffect } from "vue";
