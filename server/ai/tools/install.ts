@@ -113,6 +113,7 @@ async function isPackageInstalled(directory: string, config: McpServerConfig) {
 async function installPackage(serverName: string, config: McpServerConfig) {
   await mkdir(getMcpInstallRoot(), { recursive: true, mode: 0o700 });
   const directory = getMcpServerDirectory(serverName);
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   if (await isPackageInstalled(directory, config)) {
     await auditPackage(serverName, directory);
     return directory;

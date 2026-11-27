@@ -95,9 +95,12 @@ the tool loader and dispatcher work with any MCP server using stdio transport.
 For browser integrations, `browser_engines` can request a supported browser;
 Playwright then installs the browser and required OS packages during startup.
 This optional setup requires network access and a container user with permission
-to install system packages. Set `enabled: false` to skip package and browser
-installation. Treat this configuration as privileged: enabled MCP packages and
-their configured commands execute inside the server container.
+to install system packages, and can delay the server becoming healthy on its
+first start. The server healthcheck allows five minutes by default; adjust
+`SERVER_HEALTHCHECK_START_PERIOD` in `.env` if setup takes longer. Set the
+server's `enabled` value to `false` to skip package and browser installation.
+Treat this configuration as privileged: enabled MCP packages and their
+configured commands execute inside the server container.
 
 Build and start the application with Docker Compose:
 
