@@ -30,7 +30,15 @@
     "tsundere": "Tsundere mode",
     "thinking": "Thinking...",
     "stream": "Streaming",
-    "disclaimer": "AI can make mistakes. Always double-check important information."
+    "disclaimer": "AI can make mistakes. Always double-check important information.",
+    "developmentNoticeBadge": "In development",
+    "developmentNoticeTitle": "This project is still in development",
+    "developmentNoticeDescription": "Amadeus is a work in progress. You may encounter bugs, incomplete features, or changes as the project continues to evolve.",
+    "developmentNoticeIssuesBefore": "Found a problem or have a suggestion? Open an issue on",
+    "developmentNoticeIssuesLink": "GitHub",
+    "developmentNoticeIssuesAfter": "and let us know.",
+    "developmentNoticeDisable": "Don't show this message again",
+    "developmentNoticeContinue": "Continue to Amadeus"
   },
   "chat": {
     "newConversation": "New conversation",

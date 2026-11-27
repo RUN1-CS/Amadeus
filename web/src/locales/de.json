@@ -30,7 +30,15 @@
     "tsundere": "Tsundere-Modus",
     "thinking": "Denke nach...",
     "stream": "Antwort wird generiert",
-    "disclaimer": "KI kann Fehler machen. Überprüfen Sie wichtige Informationen stets selbst."
+    "disclaimer": "KI kann Fehler machen. Überprüfen Sie wichtige Informationen stets selbst.",
+    "developmentNoticeBadge": "In Entwicklung",
+    "developmentNoticeTitle": "Dieses Projekt befindet sich noch in der Entwicklung",
+    "developmentNoticeDescription": "Amadeus wird noch entwickelt. Es kann zu Fehlern, unvollständigen Funktionen oder Änderungen kommen, während das Projekt weiterentwickelt wird.",
+    "developmentNoticeIssuesBefore": "Einen Fehler gefunden oder einen Vorschlag? Eröffnen Sie ein Issue auf",
+    "developmentNoticeIssuesLink": "GitHub",
+    "developmentNoticeIssuesAfter": ".",
+    "developmentNoticeDisable": "Diese Nachricht nicht mehr anzeigen",
+    "developmentNoticeContinue": "Weiter zu Amadeus"
   },
   "chat": {
     "newConversation": "Neue Unterhaltung",

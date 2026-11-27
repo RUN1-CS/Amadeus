@@ -8,6 +8,7 @@ import { storeToRefs } from "pinia";
 import { useRoute, useRouter } from "vue-router";
 import ChatMessageList from "./components/chat/ChatMessageList.vue";
 import ChatSidebar from "./components/chat/ChatSidebar.vue";
+import InDevelopmentNotice from "./components/common/InDevelopmentNotice.vue";
 import { getFileKey, isPdfFile, useChatAttachments } from "./composables/useChatAttachments";
 import { useOllamaStore } from "./stores/ollama";
 import type { Chat } from "./types/chat";
@@ -129,6 +130,7 @@ async function submitMessage() {
 }
 </script>
 <template>
+  <InDevelopmentNotice />
   <RouterView v-if="route.path !== '/'" />
   <main
     v-else-if="user"

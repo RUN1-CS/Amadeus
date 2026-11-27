@@ -30,7 +30,15 @@
     "tsundere": "Tsundere režim",
     "thinking": "Přemýšlím...",
     "stream": "Generování odpovědi",
-    "disclaimer": "Umělá inteligence se může mýlit. Důležité informace si vždy ověřte."
+    "disclaimer": "Umělá inteligence se může mýlit. Důležité informace si vždy ověřte.",
+    "developmentNoticeBadge": "Ve vývoji",
+    "developmentNoticeTitle": "Tento projekt je stále ve vývoji",
+    "developmentNoticeDescription": "Amadeus je stále rozpracovaný. Můžete narazit na chyby, neúplné funkce nebo změny, jak se projekt dále vyvíjí.",
+    "developmentNoticeIssuesBefore": "Našli jste problém nebo máte návrh? Napište nám na",
+    "developmentNoticeIssuesLink": "GitHubu",
+    "developmentNoticeIssuesAfter": ".",
+    "developmentNoticeDisable": "Tuto zprávu příště nezobrazovat",
+    "developmentNoticeContinue": "Pokračovat do Amadeus"
   },
   "chat": {
     "newConversation": "Nová konverzace",

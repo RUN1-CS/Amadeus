@@ -100,6 +100,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_NOVELTY: ${VITE_NOVELTY:-false}
+        VITE_DEVELOPMENT_NOTICE: ${VITE_DEVELOPMENT_NOTICE:-true}
     ports:
       - "${WEB_PORT:-3000}:80"
     depends_on:

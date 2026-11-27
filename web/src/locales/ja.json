@@ -30,7 +30,15 @@
     "tsundere": "ツンデレモード",
     "thinking": "思考中...",
     "stream": "回答を生成中",
-    "disclaimer": "AIは誤った情報を生成することがあります。重要な情報は必ず確認してください。"
+    "disclaimer": "AIは誤った情報を生成することがあります。重要な情報は必ず確認してください。",
+    "developmentNoticeBadge": "開発中",
+    "developmentNoticeTitle": "このプロジェクトは現在開発中です",
+    "developmentNoticeDescription": "Amadeusは開発途上のプロジェクトです。不具合や未完成の機能があったり、今後の開発に伴って仕様が変更されたりする場合があります。",
+    "developmentNoticeIssuesBefore": "問題の報告や提案は、",
+    "developmentNoticeIssuesLink": "GitHub",
+    "developmentNoticeIssuesAfter": "でお知らせください。",
+    "developmentNoticeDisable": "次回からこのメッセージを表示しない",
+    "developmentNoticeContinue": "Amadeusを続ける"
   },
   "chat": {
     "newConversation": "新しい会話",

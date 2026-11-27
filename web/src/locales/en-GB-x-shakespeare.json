@@ -30,7 +30,15 @@
     "tsundere": "Tsundere mode",
     "thinking": "Pray, allow me a moment to ponder...",
     "stream": "Composing thy response",
-    "disclaimer": "Be warned: AI may err. Verify all matters of importance, lest thou be deceived."
+    "disclaimer": "Be warned: AI may err. Verify all matters of importance, lest thou be deceived.",
+    "developmentNoticeBadge": "In development",
+    "developmentNoticeTitle": "This project remaineth yet in development",
+    "developmentNoticeDescription": "Amadeus is a work in progress. Thou may encounter bugs, unfinished features, or changes as the project continueth to evolve.",
+    "developmentNoticeIssuesBefore": "Hast thou found a problem or a suggestion? Open an issue upon",
+    "developmentNoticeIssuesLink": "GitHub",
+    "developmentNoticeIssuesAfter": "and let us know.",
+    "developmentNoticeDisable": "Show this message no more",
+    "developmentNoticeContinue": "Continue unto Amadeus"
   },
   "chat": {
     "newConversation": "Begin a new discourse",

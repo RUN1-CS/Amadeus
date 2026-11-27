@@ -30,7 +30,15 @@
     "tsundere": "Tsundere mode. B-baka!",
     "thinking": "Thinkin' real hard...",
     "stream": "Streamin' teh wordz",
-    "disclaimer": "AI can do oopsies. Double-check important stuffs, k?"
+    "disclaimer": "AI can do oopsies. Double-check important stuffs, k?",
+    "developmentNoticeBadge": "In developz",
+    "developmentNoticeTitle": "Dis project still be in developz",
+    "developmentNoticeDescription": "Amadeus be a work in progress. You might find bugz, unfinished featurez, or changez while teh project keepz growin'.",
+    "developmentNoticeIssuesBefore": "Found an oopsie or got a suggestion? Open an issue on",
+    "developmentNoticeIssuesLink": "GitHub",
+    "developmentNoticeIssuesAfter": "and tell us, k?",
+    "developmentNoticeDisable": "Don't show dis message again",
+    "developmentNoticeContinue": "Continue to Amadeus"
   },
   "chat": {
     "newConversation": "New talky-talk",
