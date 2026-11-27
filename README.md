@@ -72,15 +72,27 @@ Amadeus/
 
 ### Installation
 
-Create the ignored runtime tool configuration from its example before starting
-the server:
+The server loads the ignored runtime configuration from
+`server/ai/tools/tools.yml`. If that file is missing or empty, it uses the
+example configuration. To customize the available tools, create the runtime
+file from the example:
 
 ```bash
 cp server/ai/tools/tools.example.yml server/ai/tools/tools.yml
 ```
 
-The server loads `server/ai/tools/tools.yml` at startup; Docker Compose mounts it
-read-only into the server container. Restart the server after changing it.
+The Docker image creates an empty `tools.yml` placeholder and includes the
+example configuration. Docker Compose mounts the tools directory read-only, so
+the image builds even when the ignored runtime file is absent. After editing
+`tools.yml`, the deployment owner can rebuild and recreate the server:
+
+```bash
+docker compose up -d --build --force-recreate server
+```
+
+Recreating the container starts a fresh healthcheck grace period, five minutes
+by default. Set `SERVER_HEALTHCHECK_START_PERIOD` in `.env` to adjust it.
+
 Configure MCP servers under `mcp_servers`; each enabled server defines its
 package manager, exact package version and integrity, command, arguments,
 allowed tool names, and optional tool-loop behavior. `npm` is currently the
@@ -96,9 +108,8 @@ For browser integrations, `browser_engines` can request a supported browser;
 Playwright then installs the browser and required OS packages during startup.
 This optional setup requires network access and a container user with permission
 to install system packages, and can delay the server becoming healthy on its
-first start. The server healthcheck allows five minutes by default; adjust
-`SERVER_HEALTHCHECK_START_PERIOD` in `.env` if setup takes longer. Set the
-server's `enabled` value to `false` to skip package and browser installation.
+first start. Set the server's `enabled` value to `false` to skip package and
+browser installation.
 Treat this configuration as privileged: enabled MCP packages and their
 configured commands execute inside the server container.
 
