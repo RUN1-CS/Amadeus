@@ -224,6 +224,44 @@ describe("WebSocket API", () => {
     ws.close();
   });
 
+  it("passes inferred aspect and style to image generation", async () => {
+    mocks.decideImageGeneration.mockResolvedValue({
+      generate: true,
+      positive: "a cat",
+      negative: "text",
+      aspect: "landscape",
+      style: "anime",
+    });
+    mocks.generateImage.mockResolvedValue({
+      filename: "generated.png",
+      subfolder: "",
+      type: "output",
+    });
+
+    const ws = await openSocket();
+    await sendAndCollect(ws, {
+      type: "authenticate",
+      token: "valid-token",
+    });
+
+    const messages = await collectUntilDone(ws, {
+      type: "message",
+      chatId: 12,
+      model: "test-model",
+      generativeModel: "checkpoint",
+      prompt: "Draw a cat",
+    });
+
+    expect(mocks.generateImage).toHaveBeenCalledWith(
+      "checkpoint",
+      "a cat",
+      "text",
+      { aspect: "landscape", style: "anime" },
+    );
+    expect(messages.at(-1)?.type).toBe("done");
+    ws.close();
+  });
+
   it("rejects chat requests when the model is unavailable", async () => {
     mocks.isAiModelEnabled.mockResolvedValue(false);
     const ws = await openSocket();
@@ -289,7 +327,9 @@ describe("WebSocket API", () => {
       prompt: "Continue",
       stream: true,
     });
-    expect(messages.some((message) => message.message?.content === "partial output")).toBe(true);
+    expect(
+      messages.some((message) => message.message?.content === "partial output"),
+    ).toBe(true);
     expect(messages.find((message) => message.type === "error")).toMatchObject({
       error: "Generation interrupted",
     });
