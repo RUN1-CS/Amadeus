@@ -30,7 +30,15 @@
     "tsundere": "Tsundere mode",
     "thinking": "Th-thinking...",
     "stream": "Generating response",
-    "disclaimer": "AI can make mistakes, baka! Double-check important information, okay?"
+    "disclaimer": "AI can make mistakes, baka! Double-check important information, okay?",
+    "developmentNoticeBadge": "In development!",
+    "developmentNoticeTitle": "T-this project is still in development!",
+    "developmentNoticeDescription": "Amadeus is still a work in progress. You might run into bugs, unfinished features, or changes as it keeps evolving. N-not that I expect you to find any!",
+    "developmentNoticeIssuesBefore": "Found a problem or suggestion? Open an issue on",
+    "developmentNoticeIssuesLink": "GitHub",
+    "developmentNoticeIssuesAfter": "and let us know, okay?",
+    "developmentNoticeDisable": "D-don't show this message again",
+    "developmentNoticeContinue": "Continue to Amadeus!"
   },
   "chat": {
     "newConversation": "A new conversation? F-fine!",

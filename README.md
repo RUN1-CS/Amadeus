@@ -147,6 +147,9 @@ and secret, because losing or changing it makes encrypted user data unavailable.
 Set `VITE_NOVELTY=true` in `.env` to include the novelty languages in the web
 language selector. This is applied during the web image build, so rebuild the
 web service after changing it with `docker compose up --build web`.
+Set `VITE_DEVELOPMENT_NOTICE=false` in `.env` to disable the startup
+development notice for everyone using the deployment. This is also applied
+during the web image build, so rebuild the web service after changing it.
 The server connects to ComfyUI through `COMFYUI_BASE_URL` (the Compose default is
 `http://comfyui:8188`). `COMFYUI_NEGATIVE_PROMPT` provides the administrator's
 negative prompt for administration purposes; the user can still add some.
