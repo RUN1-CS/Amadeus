@@ -99,10 +99,12 @@ export async function releaseModelForImage(model: string) {
   if (!model || process.env.UNLOAD_MODEL_BEFORE_IMAGE !== "true") return;
   try {
     await ollama.generate({ model, prompt: "", keep_alive: 0 });
+    logger.info({ event: "ai.model_unloaded" }, "Model unloaded.");
   } catch (error) {
     logger.warn(
       { event: "ai.model_unload_failed", errorType: getErrorType(error) },
       "Could not unload model",
     );
+    throw error;
   }
 }

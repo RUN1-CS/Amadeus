@@ -37,10 +37,7 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
 }));
 vi.mock("../ai/client.js", () => ({ ollama: { chat: mocks.chat } }));
 
-import {
-  chatWithTools,
-  getConfiguredTools,
-} from "../ai/tools/tool-loop.js";
+import { chatWithTools, getConfiguredTools } from "../ai/tools/tool-loop.js";
 import { validateToolConfiguration } from "../ai/tools/tool-config.js";
 
 let temporaryDirectory: string | undefined;
@@ -59,6 +56,12 @@ afterEach(async () => {
 });
 
 describe("configured MCP tool loop", () => {
+  it("accepts an empty MCP server mapping", async () => {
+    const configuration = validateToolConfiguration(parse("mcp_servers: {}"));
+
+    expect(configuration).toEqual({ mcp_servers: {} });
+  });
+
   it("accepts the checked-in declarative package example", async () => {
     const example = await readFile("ai/tools/tools.example.yml", "utf8");
     const configuration = validateToolConfiguration(parse(example));
@@ -107,7 +110,10 @@ describe("configured MCP tool loop", () => {
         {
           name: "open_page",
           description: "Open a page",
-          inputSchema: { type: "object", properties: { url: { type: "string" } } },
+          inputSchema: {
+            type: "object",
+            properties: { url: { type: "string" } },
+          },
         },
         {
           name: "lookup_record",

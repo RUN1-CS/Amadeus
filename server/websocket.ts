@@ -27,7 +27,7 @@ import {
 import { getCachedUserBySession } from "./sessions.js";
 import type { PublicUser } from "./types.js";
 import type { ClientMessage } from "./protocol.js";
-import { generateImage } from "./comfyui.js";
+import { generateImage, type GenerateOptions } from "./comfyui.js";
 import { maxPayloadBytes, heartbeatMs } from "./config.js";
 import { getErrorType, logger } from "./logger.js";
 
@@ -71,6 +71,7 @@ async function generateAndSendImage(
   user: PublicUser,
   chatId: number,
   data: ClientMessage,
+  options: GenerateOptions = {},
 ) {
   const positivePrompt = data.positivePrompt ?? data.prompt ?? "";
   if (
@@ -87,6 +88,7 @@ async function generateAndSendImage(
     data.generativeModel ?? "",
     positivePrompt,
     data.negativePrompt ?? "",
+    options,
   );
   const attachment = {
     name: image.filename,
@@ -198,12 +200,21 @@ async function sendMessage(
     request.contextWindow,
   );
   if (imageDecision.generate) {
-    await generateAndSendImage(ws, user, chatId, {
-      ...data,
-      model: request.model,
-      positivePrompt: imageDecision.positive,
-      negativePrompt: imageDecision.negative,
-    });
+    await generateAndSendImage(
+      ws,
+      user,
+      chatId,
+      {
+        ...data,
+        model: request.model,
+        positivePrompt: imageDecision.positive,
+        negativePrompt: imageDecision.negative,
+      },
+      {
+        aspect: imageDecision.aspect,
+        style: imageDecision.style,
+      },
+    );
     return;
   }
 
