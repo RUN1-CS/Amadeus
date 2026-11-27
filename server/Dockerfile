@@ -33,7 +33,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/db/migrations ./dist/db/migrations
-COPY --from=build /app/ai/tools/tools.yml ./ai/tools/tools.yml
+COPY --from=build /app/ai/tools/tools.example.yml ./ai/tools/tools.example.yml
+RUN touch ./ai/tools/tools.yml
 
 EXPOSE 8080
 
