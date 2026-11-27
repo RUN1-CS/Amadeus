@@ -72,6 +72,36 @@ Amadeus/
 
 ### Installation
 
+Create the ignored runtime tool configuration from its example before starting
+the server:
+
+```bash
+cp server/ai/tools/tools.example.yml server/ai/tools/tools.yml
+```
+
+The server loads `server/ai/tools/tools.yml` at startup; Docker Compose mounts it
+read-only into the server container. Restart the server after changing it.
+Configure MCP servers under `mcp_servers`; each enabled server defines its
+package manager, exact package version and integrity, command, arguments,
+allowed tool names, and optional tool-loop behavior. `npm` is currently the
+only supported package manager. On startup, the installer uses the public npm
+registry, installs enabled packages into an isolated `.mcp-tools` directory,
+disables package lifecycle scripts, and verifies the installed package against
+the configured SHA-512 integrity value before starting MCP servers. Matching
+packages are reused on subsequent starts; package changes trigger a reinstall.
+Set `allowed_tools` to a list to restrict tools, or leave it `null` to expose
+all tools reported by that MCP server. The example uses Playwright MCP, while
+the tool loader and dispatcher work with any MCP server using stdio transport.
+For browser integrations, `browser_engines` can request a supported browser;
+Playwright then installs the browser and required OS packages during startup.
+This optional setup requires network access and a container user with permission
+to install system packages, and can delay the server becoming healthy on its
+first start. The server healthcheck allows five minutes by default; adjust
+`SERVER_HEALTHCHECK_START_PERIOD` in `.env` if setup takes longer. Set the
+server's `enabled` value to `false` to skip package and browser installation.
+Treat this configuration as privileged: enabled MCP packages and their
+configured commands execute inside the server container.
+
 Build and start the application with Docker Compose:
 
 ```bash

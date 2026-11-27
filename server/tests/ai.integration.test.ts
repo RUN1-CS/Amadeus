@@ -74,6 +74,7 @@ describe("Ollama integration failures", () => {
       chatWithTools(request as never, vi.fn()),
     ).rejects.toThrow("Ollama returned an empty response.");
   });
+
 });
 
 describe("ComfyUI integration failures", () => {

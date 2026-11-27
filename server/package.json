@@ -5,21 +5,23 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "tsx watch index.ts",
-    "start": "node dist/index.js",
+    "dev": "npm run tools:install:dev && tsx watch index.ts",
+    "start": "node dist/ai/tools/install.js && node dist/index.js",
+    "tools:install": "node dist/ai/tools/install.js",
+    "tools:install:dev": "tsx ai/tools/install.ts",
     "test": "vitest run",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "@playwright/mcp": "^0.0.86",
     "busboy": "^1.6.0",
     "ollama": "^0.6.4",
     "pdf-parse": "^2.4.5",
     "pg": "^8.16.3",
     "pino": "^10.1.0",
     "ssh2-sftp-client": "^12.1.1",
-    "ws": "^8.23.0"
+    "ws": "^8.23.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/busboy": "^1.5.5",

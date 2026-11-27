@@ -44,6 +44,7 @@ services:
       DATABASE_BACKUP_MAX_UPLOAD_BYTES: ${DATABASE_BACKUP_MAX_UPLOAD_BYTES:-1073741824}
       DATABASE_BACKUP_TIMEOUT_MS: ${DATABASE_BACKUP_TIMEOUT_MS:-1800000}
     volumes:
+      - ./server/ai/tools/tools.yml:/app/ai/tools/tools.yml:ro
       - database-backups:${DATABASE_BACKUP_DIRECTORY:-/backups}
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -55,7 +56,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-      start_period: 30s
+      start_period: ${SERVER_HEALTHCHECK_START_PERIOD:-5m}
     depends_on:
       postgres:
         condition: service_healthy

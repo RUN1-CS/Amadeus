@@ -1,0 +1,26 @@
+# Copy this file to tools.yml to configure available MCP tools.
+mcp_servers:
+  playwright:
+    enabled: true
+    package:
+      manager: npm
+      name: "@playwright/mcp"
+      version: "0.0.86"
+      integrity: "sha512-4SL9OSINmik3+EObCYJIxH8BkhcqqGU6CM8XIgztW015iBVR9WR6Q0xF180Ery+xuEVyyK5r6nC2bOg3zjgCoA=="
+    browser_engines:
+      - firefox
+    command: node
+    args:
+      - "{package_dir}/node_modules/@playwright/mcp/cli.js"
+      - --browser=firefox
+      - --headless
+    # null exposes every discovered tool; a list restricts tools.
+    allowed_tools: null
+    # Tool names whose successful results can be sent straight to the model.
+    evidence_tools:
+      - browser_snapshot
+      - browser_evaluate
+      - browser_run_code
+    # Normalize markdown-wrapped URLs before passing them to the MCP server.
+    normalize_url_arguments:
+      browser_navigate: url
