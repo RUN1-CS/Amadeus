@@ -258,7 +258,45 @@ describe("WebSocket API", () => {
       "text",
       { aspect: "landscape", style: "anime" },
     );
+    expect(mocks.releaseModelForImage).toHaveBeenCalledWith("test-model");
+    expect(mocks.releaseModelForImage.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.generateImage.mock.invocationCallOrder[0],
+    );
     expect(messages.at(-1)?.type).toBe("done");
+    ws.close();
+  });
+
+  it("does not start image generation when unloading the chat model fails", async () => {
+    mocks.decideImageGeneration.mockResolvedValue({
+      generate: true,
+      positive: "a cat",
+      negative: "",
+      aspect: "square",
+      style: "other",
+    });
+    mocks.releaseModelForImage.mockRejectedValue(
+      new Error("Ollama unavailable"),
+    );
+
+    const ws = await openSocket();
+    await sendAndCollect(ws, {
+      type: "authenticate",
+      token: "valid-token",
+    });
+
+    const messages = await collectUntilDone(ws, {
+      type: "message",
+      chatId: 12,
+      model: "test-model",
+      generativeModel: "checkpoint",
+      prompt: "Draw a cat",
+    });
+
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+    expect(messages[0]).toMatchObject({
+      type: "error",
+      error: "Ollama unavailable",
+    });
     ws.close();
   });
 
